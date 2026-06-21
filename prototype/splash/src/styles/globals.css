@@ -113,3 +113,15 @@
   animation: loader-spin 0.8s linear infinite;
 }
 @keyframes loader-spin { to { transform: rotate(360deg); } }
+
+/* --- Reduced-motion safety net -------------------------------------------- */
+/* Neutralizes pure-CSS motion site-wide (marquees, logo banner, spinners, etc.)
+   for users who request reduced motion. JS-driven scroll beats opt out elsewhere. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

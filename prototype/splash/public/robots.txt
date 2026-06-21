@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+# TODO(dev): replace https://www.alfaitg.com/ with the real production domain.
+Sitemap: https://www.alfaitg.com/sitemap.xml

@@ -18,6 +18,9 @@ import { frameScroll } from '@/lib/frameScroll';
 interface ScrollExpandMediaProps {
   mediaType?: 'video' | 'image';
   mediaSrc: string;
+  /** Optional secondary <source> for the video (e.g. mp4 fallback for Safari/iOS
+   * when mediaSrc is a webm). Rendered after mediaSrc as a child <source>. */
+  mediaSrcFallback?: string;
   posterSrc?: string;
   bgImageSrc: string;
   title?: string;
@@ -32,6 +35,7 @@ interface ScrollExpandMediaProps {
 const ScrollExpandMedia = ({
   mediaType = 'video',
   mediaSrc,
+  mediaSrcFallback,
   posterSrc,
   bgImageSrc,
   title,
@@ -46,14 +50,33 @@ const ScrollExpandMedia = ({
   const [mediaFullyExpanded, setMediaFullyExpanded] = useState<boolean>(false);
   const [touchStartY, setTouchStartY] = useState<number>(0);
   const [isMobileState, setIsMobileState] = useState<boolean>(false);
+  // When the user prefers reduced motion we skip the scroll-jack/zoom entirely and
+  // present the media at its final (expanded) state with native scrolling.
+  const [reducedMotion, setReducedMotion] = useState<boolean>(false);
 
   const sectionRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const apply = () => setReducedMotion(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
+
+  useEffect(() => {
+    if (reducedMotion) {
+      // Present the media fully expanded immediately; no scroll-jack, no zoom.
+      setScrollProgress(1);
+      setShowContent(true);
+      setMediaFullyExpanded(false);
+      return;
+    }
     setScrollProgress(0);
     setShowContent(false);
     setMediaFullyExpanded(false);
-  }, [mediaType]);
+  }, [mediaType, reducedMotion]);
 
   // The hero gate: while the zoom runs, the frame engine is OFF (the hero owns the
   // wheel). Once fully expanded, hand the wheel to the engine. Scrolling up at the
@@ -63,13 +86,21 @@ const ScrollExpandMedia = ({
   }, []);
 
   useEffect(() => {
+    // Reduced-motion: never engage the frame engine; let the page scroll natively.
+    if (reducedMotion) {
+      frameScroll.stop();
+      return;
+    }
     // start LOCKED so the zoom-completing scroll rests on the expanded hero
     // frame instead of bleeding straight through to the robot.
     if (mediaFullyExpanded) frameScroll.start(true);
     else frameScroll.stop();
-  }, [mediaFullyExpanded]);
+  }, [mediaFullyExpanded, reducedMotion]);
 
   useEffect(() => {
+    // Reduced-motion: skip the scroll-hijack handlers entirely — native scrolling.
+    if (reducedMotion) return;
+
     const handleWheel = (e: WheelEvent) => {
       if (mediaFullyExpanded && e.deltaY < 0 && window.scrollY <= 5) {
         setMediaFullyExpanded(false);
@@ -83,6 +114,49 @@ const ScrollExpandMedia = ({
         );
         if (newProgress >= 0.87) {
           // snap the last 13% — completes the hero "zoom" into a full frame
+          setScrollProgress(1);
+          setMediaFullyExpanded(true);
+          setShowContent(true);
+        } else {
+          setScrollProgress(newProgress);
+          if (newProgress < 0.75) setShowContent(false);
+        }
+      }
+    };
+
+    // Keyboard mirror of handleWheel: the wheel listener was the ONLY way to drive
+    // the hero zoom, so arrow keys did nothing until after the hero had already
+    // expanded (frameScroll's key handler only binds post-expansion). This closes
+    // that gap — ↓/PageDown/Space advance the zoom, ↑/PageUp/Shift+Space reverse it,
+    // and ↑ at the top collapses back to the hero.
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Leave focused form fields to their own key handling.
+      const el = document.activeElement as HTMLElement | null;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) {
+        return;
+      }
+      const down =
+        e.key === 'ArrowDown' || e.key === 'PageDown' || (e.key === ' ' && !e.shiftKey);
+      const up =
+        e.key === 'ArrowUp' || e.key === 'PageUp' || (e.key === ' ' && e.shiftKey);
+      if (!down && !up) return;
+
+      // Expanded + at the top + going up → hand back to the hero (collapse).
+      if (mediaFullyExpanded && up && window.scrollY <= 5) {
+        setMediaFullyExpanded(false);
+        e.preventDefault();
+        return;
+      }
+      // While the hero is still zooming, arrow keys drive the expansion. Once
+      // expanded, frameScroll's own key handler takes the frame-to-frame steps.
+      if (!mediaFullyExpanded) {
+        e.preventDefault();
+        const STEP = 0.18; // fraction of the zoom per press (~6 presses to expand)
+        const newProgress = Math.min(
+          Math.max(scrollProgress + (down ? STEP : -STEP), 0),
+          1
+        );
+        if (newProgress >= 0.87) {
           setScrollProgress(1);
           setMediaFullyExpanded(true);
           setShowContent(true);
@@ -142,6 +216,7 @@ const ScrollExpandMedia = ({
     window.addEventListener('wheel', handleWheel as unknown as EventListener, {
       passive: false,
     });
+    window.addEventListener('keydown', handleKeyDown as unknown as EventListener);
     window.addEventListener('scroll', handleScroll as EventListener);
     window.addEventListener(
       'touchstart',
@@ -160,6 +235,10 @@ const ScrollExpandMedia = ({
         'wheel',
         handleWheel as unknown as EventListener
       );
+      window.removeEventListener(
+        'keydown',
+        handleKeyDown as unknown as EventListener
+      );
       window.removeEventListener('scroll', handleScroll as EventListener);
       window.removeEventListener(
         'touchstart',
@@ -171,7 +250,7 @@ const ScrollExpandMedia = ({
       );
       window.removeEventListener('touchend', handleTouchEnd as EventListener);
     };
-  }, [scrollProgress, mediaFullyExpanded, touchStartY]);
+  }, [scrollProgress, mediaFullyExpanded, touchStartY, reducedMotion]);
 
   useEffect(() => {
     const checkIfMobile = (): void => {
@@ -271,7 +350,7 @@ const ScrollExpandMedia = ({
                   ) : (
                     <div className='relative w-full h-full pointer-events-none'>
                       <video
-                        src={mediaSrc}
+                        key={`${mediaSrc}|${mediaSrcFallback ?? ''}`}
                         poster={posterSrc}
                         autoPlay
                         muted
@@ -282,7 +361,28 @@ const ScrollExpandMedia = ({
                         controls={false}
                         disablePictureInPicture
                         disableRemotePlayback
-                      />
+                      >
+                        {/* webm first; mp4 fallback for Safari/iOS. poster always
+                            shows if both fail. */}
+                        <source
+                          src={mediaSrc}
+                          type={
+                            mediaSrc.endsWith('.webm')
+                              ? 'video/webm'
+                              : 'video/mp4'
+                          }
+                        />
+                        {mediaSrcFallback && (
+                          <source
+                            src={mediaSrcFallback}
+                            type={
+                              mediaSrcFallback.endsWith('.webm')
+                                ? 'video/webm'
+                                : 'video/mp4'
+                            }
+                          />
+                        )}
+                      </video>
                       <div
                         className='absolute inset-0 z-10'
                         style={{ pointerEvents: 'none' }}
@@ -347,12 +447,15 @@ const ScrollExpandMedia = ({
                   textBlend ? 'mix-blend-difference' : 'mix-blend-normal'
                 }`}
               >
-                <motion.h2
+                {/* Page-level H1: the brand/title is the top-level heading. The two
+                    words split apart on scroll, so the first carries the h1 and the
+                    second is a sibling h2 (keeps a single h1 on the page). */}
+                <motion.h1
                   className='text-4xl md:text-5xl lg:text-6xl font-bold text-blue-200 transition-none'
                   style={{ transform: `translateX(-${textTranslateX}vw)` }}
                 >
                   {firstWord}
-                </motion.h2>
+                </motion.h1>
                 <motion.h2
                   className='text-4xl md:text-5xl lg:text-6xl font-bold text-center text-blue-200 transition-none'
                   style={{ transform: `translateX(${textTranslateX}vw)` }}

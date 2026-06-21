@@ -1,13 +1,10 @@
 // BEAT 4 — Proof panel (gooey left / news right). Rendered as a horizontal-rail panel.
 import { GooeyText } from "@/components/ui/gooey-text-morphing";
 import { StaggerTestimonials } from "@/components/ui/stagger-testimonials";
-import { NeonTag, NEON } from "@/components/_diag";
 
 export function ProofPanel() {
   return (
     <section className="relative grid h-full w-full grid-cols-1 items-center gap-8 px-4 py-16 md:grid-cols-2">
-      <NeonTag color={NEON.proof} label="PROOF" />
-
       {/* LEFT — gooey proof points. */}
       <div className="flex flex-col items-center justify-center gap-8 text-center">
         <div className="flex h-[260px] w-full items-center justify-center">

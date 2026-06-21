@@ -9,18 +9,54 @@ import { ProductsSection } from "./sections/ProductsSection";
 import { ProofPanel } from "./sections/ProofPanel";
 import InkReveal from "@/components/ui/ink-reveal";
 import { Paperclip } from "lucide-react";
-import { NeonTag, NEON } from "@/components/_diag";
+import { frameScroll } from "@/lib/frameScroll";
 
 const clamp = (v: number) => Math.min(Math.max(v, 0), 1);
 const PANELS = 3; // Robot, Products, Proof
+const CONTACT_EMAIL = "IR@alfaitg.com";
 
 export function HorizontalRail() {
   const railRef = useRef<HTMLElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const contactRef = useRef<HTMLDivElement>(null);
   const ctaRef = useRef<HTMLDivElement>(null);
-  const footerRef = useRef<HTMLDivElement>(null);
+  const footerRef = useRef<HTMLElement>(null);
   const [revealed, setRevealed] = useState(false);
+
+  // Contact form — no backend in this sandbox, so we hand off via mailto: and
+  // show an inline confirmation. Inputs are controlled for honest validation.
+  const [form, setForm] = useState({ name: "", email: "", message: "" });
+  const [formError, setFormError] = useState<string | null>(null);
+  const [sent, setSent] = useState(false);
+
+  const handleContactSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const name = form.name.trim();
+    const email = form.email.trim();
+    const message = form.message.trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setFormError("Please enter a valid email address.");
+      return;
+    }
+    setFormError(null);
+    const subject = encodeURIComponent(
+      name ? `Project enquiry — ${name}` : "Project enquiry",
+    );
+    const body = encodeURIComponent(
+      `${message}\n\n— ${name || "Anonymous"}${email ? ` (${email})` : ""}`,
+    );
+    // Open the visitor's mail client prefilled to the company address.
+    window.location.href = `mailto:${CONTACT_EMAIL}?subject=${subject}&body=${body}`;
+    setSent(true);
+    setForm({ name: "", email: "", message: "" });
+  };
+
+  // Jump down to the footer's structured contact form (the alternative to the
+  // overlay's instant mailto CTA). Uses the frame engine so it snaps cleanly.
+  const goToFooter = () => {
+    const el = document.getElementById("footer");
+    if (el) frameScroll.goToPos(el.getBoundingClientRect().top + window.scrollY);
+  };
 
   useEffect(() => {
     const onScroll = () => {
@@ -99,7 +135,6 @@ export function HorizontalRail() {
           style={{ opacity: 0 }}
           aria-hidden={!revealed}
         >
-          <NeonTag color={NEON.contact} label="CONTACT" />
           <img
             src="/media/images/hero/f22-pacific.jpg"
             alt=""
@@ -135,13 +170,13 @@ export function HorizontalRail() {
               >
                 Begin Your Transformation
               </a>
-              <a
-                href="mailto:IR@alfaitg.com"
+              <button
+                onClick={goToFooter}
                 tabIndex={revealed ? 0 : -1}
                 className="rounded-md border border-white/50 px-6 py-3 font-semibold text-white transition-colors hover:bg-white/10"
               >
-                Email us
-              </a>
+                Use the contact form ↓
+              </button>
             </div>
           </div>
         </div>
@@ -150,51 +185,102 @@ export function HorizontalRail() {
             Holds the "bottom of the page" info: hours, contact, social, legal.
             Starts translated fully below the sticky viewport; the scroll handler
             slides it up. */}
-        <div
+        <footer
           ref={footerRef}
           style={{ transform: "translateY(100%)" }}
           className="absolute inset-x-0 bottom-0 z-20 h-[64vh] overflow-y-auto border-t border-white/15 bg-black/95 backdrop-blur-md"
         >
           <div className="mx-auto grid max-w-5xl grid-cols-1 gap-10 px-8 py-9 text-left text-white/80 md:grid-cols-2">
-            {/* LEFT — real contact form. NOTE: sandbox — no backend wired yet. */}
-            <form
-              onSubmit={(e) => e.preventDefault()}
-              className="flex flex-col gap-3"
-            >
+            {/* LEFT — real contact form. No backend in this sandbox, so submit
+                hands off to the visitor's mail client via mailto: and confirms
+                inline. Inputs are controlled with sr-only labels for a11y. */}
+            <form onSubmit={handleContactSubmit} className="flex flex-col gap-3" noValidate>
               <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-white">
                 Contact Us Today
               </h3>
-              <input
-                type="text"
-                placeholder="Your Name"
-                className="rounded-md border border-white/20 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-white/50 focus:outline-none"
-              />
-              <input
-                type="email"
-                required
-                placeholder="Email*"
-                className="rounded-md border border-white/20 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-white/50 focus:outline-none"
-              />
-              <textarea
-                rows={3}
-                placeholder="Share Your Project Details"
-                className="resize-none rounded-md border border-white/20 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-white/50 focus:outline-none"
-              />
-              <label className="flex w-fit cursor-pointer items-center gap-2 text-sm text-white/60 hover:text-white">
-                <input type="file" multiple className="hidden" />
-                <Paperclip className="size-4" /> Attach Files
-                <span className="text-white/30">(Attachments 0)</span>
-              </label>
-              <button
-                type="submit"
-                className="mt-1 w-fit rounded border border-white/40 px-3 py-1 text-white transition-colors hover:bg-white/10"
-              >
-                Send
-              </button>
-              <p className="text-[11px] leading-snug text-white/30">
-                This site is protected by reCAPTCHA and the Google Privacy Policy
-                and Terms of Service apply.
-              </p>
+              {sent ? (
+                <div
+                  role="status"
+                  className="rounded-md border border-emerald-400/40 bg-emerald-400/10 px-3 py-4 text-sm text-emerald-200"
+                >
+                  <p className="font-semibold">Thanks — we'll be in touch.</p>
+                  <p className="mt-1 text-emerald-200/70">
+                    Your email client should have opened with your message ready
+                    to send to {CONTACT_EMAIL}.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setSent(false)}
+                    className="mt-3 w-fit rounded border border-emerald-400/40 px-3 py-1 text-emerald-100 transition-colors hover:bg-emerald-400/10"
+                  >
+                    Send another
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <label htmlFor="contact-name" className="sr-only">
+                    Your name
+                  </label>
+                  <input
+                    id="contact-name"
+                    name="name"
+                    type="text"
+                    autoComplete="name"
+                    value={form.name}
+                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                    placeholder="Your Name"
+                    className="rounded-md border border-white/20 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-white/50 focus:outline-none"
+                  />
+                  <label htmlFor="contact-email" className="sr-only">
+                    Email address (required)
+                  </label>
+                  <input
+                    id="contact-email"
+                    name="email"
+                    type="email"
+                    required
+                    autoComplete="email"
+                    value={form.email}
+                    onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                    placeholder="Email*"
+                    aria-invalid={!!formError}
+                    aria-describedby={formError ? "contact-error" : undefined}
+                    className="rounded-md border border-white/20 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-white/50 focus:outline-none"
+                  />
+                  <label htmlFor="contact-message" className="sr-only">
+                    Project details
+                  </label>
+                  <textarea
+                    id="contact-message"
+                    name="message"
+                    rows={3}
+                    value={form.message}
+                    onChange={(e) => setForm((f) => ({ ...f, message: e.target.value }))}
+                    placeholder="Share Your Project Details"
+                    className="resize-none rounded-md border border-white/20 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-white/50 focus:outline-none"
+                  />
+                  <label className="flex w-fit cursor-pointer items-center gap-2 text-sm text-white/60 hover:text-white">
+                    <input type="file" multiple className="hidden" />
+                    <Paperclip className="size-4" /> Attach Files
+                    <span className="text-white/30">(Attachments 0)</span>
+                  </label>
+                  {formError && (
+                    <p id="contact-error" role="alert" className="text-[12px] text-rose-300">
+                      {formError}
+                    </p>
+                  )}
+                  <button
+                    type="submit"
+                    className="mt-1 w-fit rounded border border-white/40 px-3 py-1 text-white transition-colors hover:bg-white/10"
+                  >
+                    Send
+                  </button>
+                  <p className="text-[11px] leading-snug text-white/30">
+                    Sending opens your email client with the message prefilled —
+                    nothing is submitted to a server.
+                  </p>
+                </>
+              )}
             </form>
 
             {/* RIGHT — legal entity, help copy, hours, social. */}
@@ -252,7 +338,7 @@ export function HorizontalRail() {
           <div className="px-8 pb-4 text-center text-[11px] text-white/30">
             Copyright © 2026 Alfa ITG - All Rights Reserved.
           </div>
-        </div>
+        </footer>
       </div>
     </section>
   );

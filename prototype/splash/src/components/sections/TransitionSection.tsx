@@ -10,13 +10,10 @@
 import RadialOrbitalTimeline from "@/components/ui/radial-orbital-timeline";
 import { SplineScene } from "@/components/ui/splite";
 import { COMPANY } from "@/lib/products";
-import { NeonTag, NEON } from "@/components/_diag";
 
 export function TransitionSection() {
   return (
     <section className="relative h-full w-full overflow-hidden">
-      <NeonTag color={NEON.robot} label="ROBOT" />
-
       {/* Robot — BELOW the orbit, interactive across the WHOLE frame so it tracks
           the cursor everywhere (the canvas now fills the panel, not a 460px box). */}
       <div className="pointer-events-none absolute inset-0 z-[10] flex items-center justify-center">

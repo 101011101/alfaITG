@@ -55,6 +55,19 @@ let lockDir = 0; // direction of travel that hit the notch
 let peakAbs = 0;
 let decaying = false;
 
+// Touch drag: we synthesize wheel-like deltas from finger movement. Track the last
+// Y so each move emits the incremental drag (dragging the finger UP scrolls the page
+// DOWN, just like a native touch surface). Velocity tracking lets a flick coast.
+let lastTouchY = 0;
+let lastTouchT = 0;
+let touchVel = 0; // px/ms of the most recent move — seeds a flick's coast on release
+
+// Reduced motion: when the user prefers reduced motion we must NOT hijack scroll at
+// all (no wheel/touch preventDefault) — native scrolling stays intact. Keyboard
+// frame-jump still works. Evaluated at start() and kept live via the MQ 'change'.
+let reducedMotion = false;
+let motionMql: MediaQueryList | null = null;
+
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
 const nearestIndex = (p: number) => {
@@ -70,21 +83,17 @@ const nearestIndex = (p: number) => {
   return bi;
 };
 
-function onWheel(e: WheelEvent) {
-  if (!running) return;
-  // At the top frame, scrolling up hands control back to the hero (collapse).
-  if (nearestIndex(pos) === 0 && e.deltaY < 0 && pos <= 2) {
-    onTopUp?.();
-    return;
-  }
-  e.preventDefault();
+// The shared velocity model: turn one positive-down delta (wheel notch OR synthesized
+// touch-drag) into velocity through the gesture/inertia/lock machinery. Both the wheel
+// and touch paths funnel through here so a beat snaps identically whatever the input.
+function applyDelta(deltaY: number) {
   mode = "free"; // user's final control
 
   const t = performance.now();
   const gap = t - lastWheelT;
   lastWheelT = t;
-  const abs = Math.abs(e.deltaY);
-  const d = e.deltaY > 0 ? 1 : e.deltaY < 0 ? -1 : 0;
+  const abs = Math.abs(deltaY);
+  const d = deltaY > 0 ? 1 : deltaY < 0 ? -1 : 0;
 
   // New gesture after a pause → reset the inertia tracking.
   if (gap >= T.gestureGap) {
@@ -110,7 +119,75 @@ function onWheel(e: WheelEvent) {
     }
   }
 
-  vel = clamp(vel + e.deltaY * T.gain, -T.maxVel, T.maxVel);
+  vel = clamp(vel + deltaY * T.gain, -T.maxVel, T.maxVel);
+}
+
+function onWheel(e: WheelEvent) {
+  if (!running) return;
+  // At the top frame, scrolling up hands control back to the hero (collapse).
+  if (nearestIndex(pos) === 0 && e.deltaY < 0 && pos <= 2) {
+    onTopUp?.();
+    return;
+  }
+  e.preventDefault();
+  applyDelta(e.deltaY);
+}
+
+// Touch mirrors the wheel: each move's vertical drag becomes a wheel-equivalent delta
+// (finger up = page down, so deltaY = lastY − currentY), fed through applyDelta. The
+// drag is scaled so a finger flick lands in the same velocity range as a trackpad
+// flick. Respect the same input-guard as the keyboard path so a focused field's own
+// touch scrolling (e.g. a textarea) is left alone.
+const TOUCH_GAIN = 2.4; // px-of-drag → wheel-equivalent delta (tuned to feel native)
+
+function inFormField() {
+  const el = document.activeElement as HTMLElement | null;
+  return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
+}
+
+function onTouchStart(e: TouchEvent) {
+  if (!running || inFormField()) return;
+  const tch = e.touches[0];
+  if (!tch) return;
+  lastTouchY = tch.clientY;
+  lastTouchT = performance.now();
+  touchVel = 0;
+}
+
+function onTouchMove(e: TouchEvent) {
+  if (!running || inFormField()) return;
+  const tch = e.touches[0];
+  if (!tch) return;
+  const y = tch.clientY;
+  const dragY = lastTouchY - y; // finger up (y decreasing) → positive = scroll down
+  lastTouchY = y;
+
+  // At the top frame, dragging down (finger down → dragY < 0) hands control back to
+  // the hero (collapse) — mirrors the wheel's top-handoff.
+  if (nearestIndex(pos) === 0 && dragY < 0 && pos <= 2) {
+    onTopUp?.();
+    return;
+  }
+  e.preventDefault();
+
+  const now = performance.now();
+  const dt = now - lastTouchT || 16;
+  lastTouchT = now;
+  touchVel = dragY / dt; // px/ms, signed — remembered for the release flick
+
+  applyDelta(dragY * TOUCH_GAIN);
+}
+
+function onTouchEnd() {
+  if (!running) return;
+  // A flick: hand off the finger's parting speed as a final shove so the beat can
+  // coast/ram exactly as a trackpad flick would. Slow lifts (a deliberate settle)
+  // add nothing and just rest where they are.
+  const flick = touchVel * 16; // px/ms → ~per-frame delta
+  if (Math.abs(flick) > 4) {
+    applyDelta(flick * TOUCH_GAIN);
+  }
+  touchVel = 0;
 }
 
 function tick() {
@@ -195,10 +272,7 @@ function step(dir: number) {
 // is focused so typing/space/arrows still work in inputs.
 function onKey(e: KeyboardEvent) {
   if (!running) return;
-  const el = document.activeElement as HTMLElement | null;
-  if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) {
-    return;
-  }
+  if (inFormField()) return;
   switch (e.key) {
     case "ArrowDown":
     case "ArrowRight":
@@ -228,6 +302,37 @@ function onKey(e: KeyboardEvent) {
       break;
     default:
       break;
+  }
+}
+
+// Attach / detach the scroll-HIJACK listeners (wheel + touch). Kept separate from the
+// keyboard listener so reduced-motion can drop the hijack while keeping frame-jump keys.
+// touch* are non-passive because onTouchMove calls preventDefault to suppress native scroll.
+function bindHijack() {
+  window.addEventListener("wheel", onWheel, { passive: false });
+  window.addEventListener("touchstart", onTouchStart, { passive: false });
+  window.addEventListener("touchmove", onTouchMove, { passive: false });
+  window.addEventListener("touchend", onTouchEnd, { passive: false });
+}
+function unbindHijack() {
+  window.removeEventListener("wheel", onWheel);
+  window.removeEventListener("touchstart", onTouchStart);
+  window.removeEventListener("touchmove", onTouchMove);
+  window.removeEventListener("touchend", onTouchEnd);
+}
+
+// React to a live reduced-motion preference flip while the engine is running: drop the
+// hijack when it turns on (native scroll resumes), re-attach it when it turns off.
+function onMotionChange(e: MediaQueryListEvent) {
+  reducedMotion = e.matches;
+  if (!running) return;
+  if (reducedMotion) {
+    unbindHijack();
+    vel = 0;
+    locked = false;
+    mode = "free";
+  } else {
+    bindHijack();
   }
 }
 
@@ -261,7 +366,15 @@ export const frameScroll = {
     } else {
       locked = false;
     }
-    window.addEventListener("wheel", onWheel, { passive: false });
+    // Reduced motion: never hijack scroll — let the page scroll natively. We still bind
+    // keyboard (frame-jump stays available) and keep the MQ listener so toggling the
+    // preference live re-engages the cinematic engine without a reload.
+    motionMql = window.matchMedia("(prefers-reduced-motion: reduce)");
+    reducedMotion = motionMql.matches;
+    motionMql.addEventListener("change", onMotionChange);
+    if (!reducedMotion) {
+      bindHijack();
+    }
     window.addEventListener("keydown", onKey);
     raf = requestAnimationFrame(tick);
   },
@@ -269,8 +382,12 @@ export const frameScroll = {
     running = false;
     if (raf) cancelAnimationFrame(raf);
     raf = 0;
-    window.removeEventListener("wheel", onWheel);
+    unbindHijack();
     window.removeEventListener("keydown", onKey);
+    if (motionMql) {
+      motionMql.removeEventListener("change", onMotionChange);
+      motionMql = null;
+    }
   },
   /** Animate to the frame nearest a given scroll position (used by nav links). */
   goToPos(y: number) {

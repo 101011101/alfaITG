@@ -3,7 +3,6 @@ import type { ElementType } from "react";
 import { Marquee } from "@/components/ui/marquee";
 import { Card, CardContent } from "@/components/ui/card";
 import { PRODUCTS, type Product } from "@/lib/products";
-import { NeonTag, NEON } from "@/components/_diag";
 
 function ProductCard({ title, blurb, image, icon: Icon }: Product & { icon: ElementType }) {
   return (
@@ -26,7 +25,6 @@ export function ProductsSection() {
   const columns = [false, true, false, true, false, true]; // alternate scroll direction
   return (
     <section className="relative h-full w-full overflow-hidden">
-      <NeonTag color={NEON.products} label="PRODUCTS" />
       <h2 className="absolute top-10 left-1/2 z-20 -translate-x-1/2 text-3xl font-bold text-foreground drop-shadow">
         Our Key Offerings
       </h2>

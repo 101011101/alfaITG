@@ -32,58 +32,40 @@ export default function App() {
   const [hideBar, setHideBar] = useState(false);
   const [showCorner, setShowCorner] = useState(false);
   const [active, setActive] = useState(0);
+  const [atTop, setAtTop] = useState(true);
   const lastY = useRef(0);
-  const idleTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const cursorAtTop = useRef(false);
 
-  // Header behaviour:
-  //  - scroll down -> hide; scroll up / at-top -> reveal
-  //  - once revealed, auto-hide after a couple seconds of inactivity
-  //  - cursor near the top edge pops it out and pins it open while hovering there
+  // Header behaviour (tuned for the scroll-jacked frame site):
+  //  - on the hero (very top) it's always visible and transparent over the video
+  //  - past the hero it hides while you scroll DOWN, reveals when you scroll UP —
+  //    with a small delta so a frame-snap's overshoot can't flip it
+  //  - moving the cursor to the top edge always pulls it back into view
+  // No idle auto-hide: a header that vanished mid-frame while reading was the
+  // janky part, and every frame snap kept re-triggering it.
   useEffect(() => {
-    const IDLE_MS = 2200; // inactivity before the revealed header tucks away
-    const TOP_ZONE = 90; // px from the top that counts as "near the header"
-
-    const scheduleHide = () => {
-      clearTimeout(idleTimer.current);
-      if (cursorAtTop.current) return; // stay open while the cursor lingers up top
-      idleTimer.current = setTimeout(() => setHideBar(true), IDLE_MS);
-    };
+    const TOP_ZONE = 90; // px from the top that counts as "reaching for the header"
+    const DELTA = 8; // ignore sub-threshold jitter / snap overshoot
 
     const onScroll = () => {
       const y = window.scrollY;
+      setAtTop(y <= 80);
       setShowCorner(y > window.innerHeight * 0.8);
-      if (y <= 80) {
-        setHideBar(false); // at the very top the header always shows
-        clearTimeout(idleTimer.current);
-      } else if (y < lastY.current) {
-        setHideBar(false); // scrolling up reveals it...
-        scheduleHide(); // ...but it tucks away again if you go idle
-      } else {
-        setHideBar(true); // scrolling down hides it immediately
-        clearTimeout(idleTimer.current);
-      }
+      if (y <= 80) setHideBar(false); // hero: always shown
+      else if (y < lastY.current - DELTA) setHideBar(false); // scrolling up reveals
+      else if (y > lastY.current + DELTA) setHideBar(true); // scrolling down hides
       lastY.current = y;
     };
 
     const onMove = (e: MouseEvent) => {
-      const atTop = e.clientY <= TOP_ZONE;
-      if (atTop && !cursorAtTop.current) {
-        cursorAtTop.current = true;
-        setHideBar(false);
-        clearTimeout(idleTimer.current);
-      } else if (!atTop && cursorAtTop.current) {
-        cursorAtTop.current = false;
-        scheduleHide(); // cursor left the zone -> resume the idle countdown
-      }
+      if (e.clientY <= TOP_ZONE) setHideBar(false); // reach for the top edge -> reveal
     };
 
+    onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("mousemove", onMove, { passive: true });
     return () => {
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("mousemove", onMove);
-      clearTimeout(idleTimer.current);
     };
   }, []);
 
@@ -135,24 +117,46 @@ export default function App() {
 
       {/* Top header */}
       <header
-        className={`fixed inset-x-0 top-0 z-50 flex h-14 items-center justify-between border-b border-border/60 bg-background/80 px-6 backdrop-blur transition-transform duration-300 ${
+        className={`fixed inset-x-0 top-0 z-50 flex h-14 items-center justify-between border-b px-6 transition-[transform,background-color,border-color] duration-300 ${
           hideBar ? "-translate-y-full" : "translate-y-0"
+        } ${
+          atTop
+            ? "border-transparent bg-transparent"
+            : "border-border/60 bg-background/80 backdrop-blur"
         }`}
       >
-        <span className="font-bold tracking-[0.2em]">ALFA&nbsp;ITG</span>
+        {/* Wordmark doubles as "home" — back to the top/hero. */}
+        <button
+          onClick={() => goto("hero")}
+          className="font-bold tracking-[0.2em] text-foreground transition-opacity hover:opacity-70"
+        >
+          ALFA&nbsp;ITG
+        </button>
         <nav className="flex items-center gap-5 text-sm text-muted-foreground">
-          <button onClick={() => goto("products")} className="hover:text-foreground">
-            Products
-          </button>
-          <button onClick={() => goto("proof")} className="hover:text-foreground">
-            Proof
-          </button>
-          <button
-            onClick={() => goto("contact")}
-            className="rounded border border-foreground/40 px-3 py-1 text-foreground hover:bg-accent"
-          >
-            Contact
-          </button>
+          {NAV.map((item) => {
+            const isActive = BEATS[active]?.id === item.id;
+            return item.id === "contact" ? (
+              <button
+                key={item.id}
+                onClick={() => goto(item.id)}
+                className={`rounded border px-3 py-1 text-foreground transition-colors ${
+                  isActive ? "border-foreground bg-accent" : "border-foreground/40 hover:bg-accent"
+                }`}
+              >
+                {item.label}
+              </button>
+            ) : (
+              <button
+                key={item.id}
+                onClick={() => goto(item.id)}
+                className={`transition-colors ${
+                  isActive ? "text-foreground" : "hover:text-foreground"
+                }`}
+              >
+                {item.label}
+              </button>
+            );
+          })}
         </nav>
       </header>
 

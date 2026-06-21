@@ -3,7 +3,6 @@
 // NOTE: ScrollExpandMedia scroll-jacks the window — pinned at top until expanded.
 // The on-image CTAs navigate only after the media is expanded (scroll unlocks).
 import ScrollExpandMedia from "@/components/ui/scroll-expansion-hero";
-import { NeonTag, NEON } from "@/components/_diag";
 
 const goto = (id: string) =>
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
@@ -11,9 +10,12 @@ const goto = (id: string) =>
 export function HeroSection() {
   return (
     <section id="hero" data-label="Hero" className="relative">
-      <NeonTag color={NEON.hero} label="HERO" />
       <ScrollExpandMedia
         mediaType="video"
+        // mp4 (H.264) is the primary source — plays in Safari/iOS and Chromium.
+        // If a webm variant is added later, swap mediaSrc to the .webm and pass the
+        // .mp4 here as the Safari fallback. poster is always set on the <video>, so
+        // even if every source fails the user still sees the still frame.
         mediaSrc="/media/videos/f22-hero.mp4"
         posterSrc="/media/images/hero/f22-twilight.jpg"
         bgImageSrc="/media/images/hero/f22-twilight.jpg"
