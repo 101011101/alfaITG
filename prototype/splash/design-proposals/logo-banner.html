@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Logo Banner — Design Proposals</title>
+<!--
+==============================================================================
+  COMPANY LOGO BANNER — 3 DESIGN PROPOSALS (static mockup, NOT React)
+==============================================================================
+  All three are REVOLVING (auto-scrolling marquee) banners of company logos,
+  intended to sit FIXED at the BOTTOM of the viewport. They are TRANSLUCENT by
+  default and become OPAQUE + PAUSED on hover.
+
+  In this mockup each concept is shown as its own labeled, stacked PANEL so the
+  product owner can compare directions side by side. (In production only ONE
+  would be chosen and made position:fixed; bottom:0 — see the note in panel 1.)
+
+  CONCEPT 1 — FLAT BAND, fades near the "Contact us" CTA corner.
+      A simple horizontal band. A linear-gradient mask fades the logos out as
+      they approach the bottom-right CTA so they never collide with the button.
+
+  CONCEPT 2 — CURVED / ARC carousel, fades on BOTH edges.  (OWNER'S FAVORITE)
+      Logos ride a gentle concave arc; left & right edges mask to transparent
+      so logos materialize and dissolve at the curved ends. Softer, premium.
+
+  CONCEPT 3 — CONVEX 3D-PERSPECTIVE marquee.
+      Logos sit on a tilted plane in CSS 3D space: center pops forward, edges
+      recede and fade. A physical "conveyor / showroom" feel.
+
+  HOW TO VIEW:  Just open this file in any modern browser. No build, no server,
+  no internet — all logos are inline SVG/text wordmarks. Hover any banner to
+  pause it and watch it become fully opaque.
+==============================================================================
+-->
+<style>
+  :root {
+    --bg: #0b0b0c;
+    --panel: #111114;
+    --ink: #e8e8ea;
+    --muted: #8a8a92;
+    --accent: #4ea8ff;
+    --logo: #cfd2d6;
+    --speed: 32s;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  header.page {
+    padding: 40px 32px 8px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  header.page h1 {
+    font-size: 22px;
+    letter-spacing: 0.5px;
+    margin: 0 0 8px;
+  }
+  header.page p {
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.5;
+    margin: 0;
+    max-width: 720px;
+  }
+
+  .proposal {
+    max-width: 1100px;
+    margin: 36px auto;
+    padding: 0 32px;
+  }
+  .proposal .label {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 6px;
+  }
+  .proposal .label .num {
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 12px;
+    color: var(--accent);
+    border: 1px solid rgba(78,168,255,0.4);
+    border-radius: 4px;
+    padding: 2px 7px;
+  }
+  .proposal .label h2 {
+    font-size: 16px;
+    margin: 0;
+    letter-spacing: 0.4px;
+  }
+  .proposal .caption {
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.5;
+    margin: 0 0 14px;
+    max-width: 760px;
+  }
+
+  /* ---- The dark "viewport" each banner is mocked inside ---- */
+  .stage {
+    position: relative;
+    height: 200px;
+    border-radius: 12px;
+    overflow: hidden;
+    background:
+      radial-gradient(1200px 200px at 50% 120%, #1a1c22 0%, #0b0b0c 70%),
+      var(--panel);
+    border: 1px solid #1d1d22;
+    /* faint industrial grid so translucency reads */
+    background-image:
+      linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size: 40px 40px, 40px 40px;
+  }
+  .stage::before {
+    /* fake page content above the banner, so "bottom-locked" reads */
+    content: "▲ page content above";
+    position: absolute;
+    top: 14px; left: 16px;
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: #3a3a42;
+    text-transform: uppercase;
+  }
+
+  /* ---- Shared marquee track ---- */
+  .marquee {
+    display: flex;
+    width: max-content;
+    gap: 56px;
+    align-items: center;
+    animation: scroll var(--speed) linear infinite;
+    will-change: transform;
+  }
+  @keyframes scroll {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+  }
+  .wm {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-weight: 600;
+    letter-spacing: 2px;
+    font-size: 18px;
+    color: var(--logo);
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    opacity: 0.92;
+  }
+  .wm svg { flex: none; }
+
+  /* ---- Translucent by default, opaque + paused on hover ---- */
+  .band {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    opacity: 0.45;
+    transition: opacity 0.35s ease, background 0.35s ease;
+  }
+  .band:hover { opacity: 1; }
+  .band:hover .marquee { animation-play-state: paused; }
+
+  /* mock CTA, bottom-right of every stage */
+  .cta {
+    position: absolute;
+    right: 16px; bottom: 16px;
+    z-index: 5;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    color: #fff;
+    background: linear-gradient(180deg, #2b6fd6, #1f54a8);
+    border: 1px solid #4ea8ff66;
+    padding: 9px 14px;
+    border-radius: 8px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.45);
+    cursor: pointer;
+  }
+
+  /* =========================================================
+     CONCEPT 1 — FLAT BAND, fade near CTA corner
+     ========================================================= */
+  .band--flat {
+    height: 84px;
+    display: flex;
+    align-items: center;
+    background: linear-gradient(180deg, rgba(20,21,26,0) 0%, rgba(14,15,18,0.85) 60%);
+    /* fade the logo track out toward the right CTA corner */
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 6%, #000 62%, transparent 92%);
+            mask-image: linear-gradient(90deg, transparent 0, #000 6%, #000 62%, transparent 92%);
+  }
+  .band--flat:hover {
+    background: linear-gradient(180deg, rgba(20,21,26,0.6) 0%, rgba(10,11,14,0.97) 60%);
+  }
+
+  /* =========================================================
+     CONCEPT 2 — CURVED / ARC carousel, fades on BOTH edges
+     ========================================================= */
+  .band--arc {
+    height: 130px;
+    bottom: 0;
+    /* both edges dissolve to transparent */
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 14%, #000 86%, transparent 100%);
+            mask-image: linear-gradient(90deg, transparent 0, #000 14%, #000 86%, transparent 100%);
+    background: linear-gradient(180deg, rgba(20,21,26,0) 0%, rgba(13,14,17,0.9) 70%);
+  }
+  .band--arc:hover {
+    background: linear-gradient(180deg, rgba(20,21,26,0.55) 0%, rgba(9,10,13,0.98) 70%);
+  }
+  .band--arc .marquee {
+    /* concave arc: items dip in the middle via per-item translateY set inline */
+    align-items: flex-end;
+    padding-bottom: 26px;
+    height: 130px;
+  }
+  .band--arc .wm {
+    /* gentle vertical offset creates the arc; subtle scale at center */
+    transition: transform 0.3s ease;
+  }
+
+  /* =========================================================
+     CONCEPT 3 — CONVEX 3D-PERSPECTIVE marquee
+     ========================================================= */
+  .band--persp {
+    height: 150px;
+    perspective: 600px;
+    perspective-origin: 50% 60%;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 18%, #000 82%, transparent 100%);
+            mask-image: linear-gradient(90deg, transparent 0, #000 18%, #000 82%, transparent 100%);
+    background: linear-gradient(180deg, rgba(20,21,26,0) 0%, rgba(13,14,17,0.92) 75%);
+  }
+  .band--persp:hover {
+    background: linear-gradient(180deg, rgba(20,21,26,0.6) 0%, rgba(9,10,13,0.98) 75%);
+  }
+  .band--persp .marquee {
+    /* tilt the whole conveyor plane back: center forward, edges receding */
+    transform: rotateX(34deg);
+    transform-style: preserve-3d;
+    align-items: center;
+    height: 150px;
+    padding: 0 40px;
+  }
+  .band--persp .wm {
+    text-shadow: 0 2px 10px rgba(0,0,0,0.6);
+  }
+
+  footer.page {
+    max-width: 1100px;
+    margin: 24px auto 60px;
+    padding: 0 32px;
+    color: #4a4a52;
+    font-size: 12px;
+  }
+</style>
+</head>
+<body>
+
+  <header class="page">
+    <h1>Company Logos Banner — Design Proposals</h1>
+    <p>
+      Three directions for the revolving, bottom-locked partner-logos banner.
+      Each is translucent by default and becomes <strong>opaque &amp; paused on hover</strong>
+      — hover any band to try it. In production only one is chosen and set to
+      <code>position:fixed; bottom:0</code>.
+    </p>
+  </header>
+
+  <!-- ============ CONCEPT 1 ============ -->
+  <section class="proposal">
+    <div class="label">
+      <span class="num">01</span>
+      <h2>Flat band — fades out near the "Contact us" CTA</h2>
+    </div>
+    <p class="caption">
+      A straightforward horizontal strip. A linear-gradient mask dissolves the
+      marquee as it nears the bottom-right corner so logos never collide with
+      the CTA. Lowest-risk, fastest to ship. (In the real app this band is
+      <code>position:fixed; bottom:0; left:0; right:0</code>.)
+    </p>
+    <div class="stage">
+      <div class="band band--flat" id="band-flat">
+        <div class="marquee"></div>
+      </div>
+      <button class="cta">Contact us ↗</button>
+    </div>
+  </section>
+
+  <!-- ============ CONCEPT 2 ============ -->
+  <section class="proposal">
+    <div class="label">
+      <span class="num">02</span>
+      <h2>Curved arc carousel — fades on both edges &nbsp;<small style="color:var(--accent)">★ owner favorite</small></h2>
+    </div>
+    <p class="caption">
+      Logos ride a gentle concave arc, dipping toward the center and rising at
+      the ends. Both left and right edges mask to transparent, so logos
+      materialize and dissolve at the curved tips. Softer and more premium than
+      a flat band.
+    </p>
+    <div class="stage">
+      <div class="band band--arc" id="band-arc">
+        <div class="marquee"></div>
+      </div>
+      <button class="cta">Contact us ↗</button>
+    </div>
+  </section>
+
+  <!-- ============ CONCEPT 3 ============ -->
+  <section class="proposal">
+    <div class="label">
+      <span class="num">03</span>
+      <h2>Convex 3D-perspective marquee</h2>
+    </div>
+    <p class="caption">
+      The logo track is a tilted plane in CSS 3D space — a conveyor/showroom
+      feel where the center pops forward and the edges recede and fade. Most
+      distinctive, but the most opinionated and the trickiest to keep legible.
+    </p>
+    <div class="stage">
+      <div class="band band--persp" id="band-persp">
+        <div class="marquee"></div>
+      </div>
+      <button class="cta">Contact us ↗</button>
+    </div>
+  </section>
+
+  <footer class="page">
+    Static mockup — pure HTML/CSS with a tiny JS helper that clones the wordmarks
+    for a seamless loop and applies the arc offsets. No external assets.
+  </footer>
+
+<script>
+  // ---- Fake company wordmarks (inline SVG marks + text, fully offline) ----
+  const COMPANIES = [
+    { name: "NORTHWIND", mark: "wind" },
+    { name: "VANTA",     mark: "tri"  },
+    { name: "ACME",      mark: "ring" },
+    { name: "HELIOS",    mark: "sun"  },
+    { name: "AETHER",    mark: "hex"  },
+    { name: "ORBITAL",   mark: "ring" },
+    { name: "FORGEWORKS",mark: "bolt" },
+    { name: "MERIDIAN",  mark: "tri"  },
+    { name: "QUANTA",    mark: "hex"  },
+    { name: "STRATOS",   mark: "wind" },
+  ];
+
+  function svgMark(type) {
+    const s = 'stroke="currentColor" stroke-width="2" fill="none"';
+    const inner = {
+      wind: `<path d="M2 9 H14 a3 3 0 1 0 -3 -3" ${s}/><path d="M2 14 H18 a3 3 0 1 1 -3 3" ${s}/>`,
+      tri:  `<path d="M11 2 L20 18 H2 Z" ${s}/>`,
+      ring: `<circle cx="11" cy="10" r="8" ${s}/><circle cx="11" cy="10" r="3" ${s}/>`,
+      sun:  `<circle cx="11" cy="10" r="4" ${s}/><path d="M11 1 V4 M11 16 V19 M1 10 H4 M18 10 H21 M4 3 L6 5 M16 15 L18 17 M18 3 L16 5 M6 15 L4 17" ${s}/>`,
+      hex:  `<path d="M11 2 L19 6 V14 L11 18 L3 14 V6 Z" ${s}/>`,
+      bolt: `<path d="M12 1 L4 12 H10 L9 19 L18 7 H11 Z" ${s}/>`,
+    }[type] || `<circle cx="11" cy="10" r="7" ${s}/>`;
+    return `<svg width="22" height="20" viewBox="0 0 22 20" aria-hidden="true">${inner}</svg>`;
+  }
+
+  // Build one pass of wordmarks
+  function buildPass() {
+    return COMPANIES.map(c =>
+      `<span class="wm">${svgMark(c.mark)}${c.name}</span>`
+    ).join("");
+  }
+
+  // Fill every marquee with TWO passes so translateX(-50%) loops seamlessly
+  document.querySelectorAll(".marquee").forEach(m => {
+    m.innerHTML = buildPass() + buildPass();
+  });
+
+  // ---- Concept 2: apply a concave-arc vertical offset per item ----
+  // We offset each wordmark by a sine-shaped amount across the visible width,
+  // animated subtly so the dip "rides" with the scroll.
+  const arc = document.querySelector("#band-arc .marquee");
+  if (arc) {
+    const items = [...arc.querySelectorAll(".wm")];
+    const N = COMPANIES.length;
+    items.forEach((el, i) => {
+      // position within one pass (0..1)
+      const t = (i % N) / N;
+      // concave: lift the ends, dip the middle (cosine)
+      const lift = Math.cos((t - 0.5) * Math.PI * 2); //  +1 ends, -1 mid
+      const y = -10 * (1 - lift); // 0 at ends, up to ~ -20 at center span
+      const scale = 1 + 0.06 * lift;
+      el.style.transform = `translateY(${y.toFixed(1)}px) scale(${scale.toFixed(3)})`;
+    });
+  }
+
+  // ---- Concept 3: depth + fade per item across the tilted plane ----
+  const persp = document.querySelector("#band-persp .marquee");
+  if (persp) {
+    const items = [...persp.querySelectorAll(".wm")];
+    const N = COMPANIES.length;
+    items.forEach((el, i) => {
+      const t = (i % N) / N;
+      // center forward (+z), edges back (-z)
+      const fwd = Math.cos((t - 0.5) * Math.PI * 2);
+      const z = 30 * fwd;
+      el.style.transform = `translateZ(${z.toFixed(0)}px)`;
+      el.style.opacity = (0.55 + 0.45 * Math.max(0, fwd)).toFixed(2);
+    });
+  }
+</script>
+</body>
+</html>

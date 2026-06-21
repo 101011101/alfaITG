@@ -1,0 +1,58 @@
+// BEAT 2 — "Jet → Schematic" reimagined [PIN].
+// A 3D robot that LOOKS AT YOUR CURSOR, ringed by the hoverable product orbit.
+// LAYERING FIX (both interactions at once):
+//   - robot sits BELOW (z-10), interactive, so the Spline canvas gets the cursor
+//     through the gaps and tracks it.
+//   - the orbit sits ON TOP (z-20) but its container is pointer-events-none, so
+//     moves pass THROUGH to the robot; only the nodes are pointer-events-auto,
+//     so hovering a node still pauses + expands its card.
+// Background is now transparent — the Silent-Precision pixel canvas shows through.
+import RadialOrbitalTimeline from "@/components/ui/radial-orbital-timeline";
+import { SplineScene } from "@/components/ui/splite";
+import { PRODUCTS } from "@/lib/products";
+import { NeonTag, NEON } from "@/components/_diag";
+
+export function TransitionSection() {
+  return (
+    <section className="relative h-full w-full overflow-hidden">
+      <NeonTag color={NEON.robot} label="ROBOT" />
+
+      {/* Ghosted airframe schematic — "we see the machine". */}
+      <div className="pointer-events-none absolute inset-0 z-[5] flex items-center justify-center">
+        <img
+          src="/media/images/schematic/airframe-cutaway.png"
+          alt=""
+          className="w-[70vw] max-w-3xl opacity-[0.06] invert"
+        />
+      </div>
+
+      {/* Robot — BELOW the orbit, interactive across the WHOLE frame so it tracks
+          the cursor everywhere (the canvas now fills the panel, not a 460px box). */}
+      <div className="pointer-events-none absolute inset-0 z-[10] flex items-center justify-center">
+        <div className="pointer-events-auto relative h-full w-full">
+          <SplineScene
+            scene="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode"
+            className="h-full w-full"
+          />
+        </div>
+      </div>
+
+      {/* Orbit — ON TOP, container non-interactive (moves pass through to the
+          robot); only the nodes capture hover/click. */}
+      <div className="pointer-events-none absolute inset-0 z-[20]">
+        <RadialOrbitalTimeline timelineData={PRODUCTS} />
+      </div>
+
+      {/* Thesis copy. */}
+      <div className="pointer-events-none absolute left-1/2 top-12 z-[30] -translate-x-1/2 px-4 text-center">
+        <h2 className="text-2xl font-bold text-foreground md:text-3xl">
+          We see the machine, not the surface.
+        </h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Move your cursor — the robot follows you. Hover a product to stop the
+          orbit and read it.
+        </p>
+      </div>
+    </section>
+  );
+}

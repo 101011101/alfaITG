@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<!--
+  Alfa ITG — SPLASH WIREFRAME (the "jam everything together" sandbox)
+  Purpose: a kitchen-sink playground where an agent team implements a bunch of
+  things at once. Start from the same blockout as wireframe.html, then pile on.
+  Build instructions live in: prototype/splash-instructions.md
+  [PIN] = scroll-locked spectacle.  [FREE] = native free-scroll read/scan.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alfa ITG — Taster Wireframe</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 14px/1.5 ui-monospace, "SF Mono", Menlo, monospace;
+    color: #333;
+    background: #f4f4f4;
+  }
+
+  /* ---- persistent chrome -------------------------------------------- */
+
+  /* top header: hides on scroll-down, shows on scroll-up */
+  header {
+    position: fixed; top: 0; left: 0; right: 0; height: 56px; z-index: 50;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 24px;
+    background: rgba(255,255,255,.9);
+    border-bottom: 1px dashed #bbb;
+    transition: transform .3s ease;
+  }
+  header.hidden { transform: translateY(-100%); }
+  .logo { font-weight: 700; letter-spacing: 1px; }
+  nav a { margin-left: 18px; color: #555; text-decoration: none; }
+  .cta { padding: 6px 14px; border: 1px solid #333; border-radius: 4px; }
+
+  /* always-visible corner Contact (appears after hero) */
+  .corner-cta {
+    position: fixed; right: 20px; bottom: 20px; z-index: 50;
+    padding: 10px 16px; background: #2d6; border: 1px solid #093; border-radius: 6px;
+    color: #042; font-weight: 700; text-decoration: none;
+    opacity: 0; transition: opacity .3s ease; pointer-events: none;
+  }
+  .corner-cta.show { opacity: 1; pointer-events: auto; }
+
+  /* right-edge progress bar: 1 segment per beat + skip arrows between */
+  .progress {
+    position: fixed; right: 14px; top: 50%; transform: translateY(-50%); z-index: 50;
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+  }
+  .progress .seg {
+    width: 4px; height: 26px; background: #ccc; border-radius: 2px; cursor: pointer;
+    transition: background .2s, height .2s;
+  }
+  .progress .seg.active { background: #333; height: 34px; }
+  .progress .arrow { font-size: 9px; color: #aaa; line-height: 1; cursor: pointer; }
+  .progress .arrow:hover { color: #333; }
+
+  /* ---- beat sections ------------------------------------------------ */
+  section {
+    min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 40px;
+    border-bottom: 2px dashed #bbb;
+    position: relative;
+  }
+  .tag {
+    position: absolute; top: 16px; left: 16px;
+    font-size: 11px; padding: 3px 8px; border-radius: 3px; letter-spacing: .5px;
+  }
+  .pin  { background: #69f; color: #fff; }   /* spectacle, scroll-locked */
+  .free { background: #ddd; color: #444; }    /* free-scroll */
+  .beatno { font-size: 12px; color: #888; letter-spacing: 2px; }
+  h2 { margin: 6px 0 4px; font-size: 26px; }
+  .role { color: #666; max-width: 560px; }
+  .note { margin-top: 14px; font-size: 12px; color: #999; max-width: 560px; }
+  .box { margin-top: 22px; padding: 18px 24px; border: 1px dashed #aaa; background: #fafafa; }
+
+  /* hero gets a "video bg" placeholder + problem overlay note */
+  #hero { background: repeating-linear-gradient(45deg,#e8e8e8,#e8e8e8 12px,#e2e2e2 12px,#e2e2e2 24px); }
+  .vidlabel { font-size: 12px; color: #888; position:absolute; top: 70px; }
+
+  /* fish tank blockout */
+  .tank {
+    margin-top: 20px; width: min(680px,90%); height: 260px;
+    border: 2px solid #6ad; border-radius: 10px; background: rgba(120,180,220,.12);
+    position: relative; overflow: hidden;
+  }
+  .fish {
+    position: absolute; width: 64px; height: 30px; border: 1px dashed #69a;
+    border-radius: 4px; background:#fff; font-size: 10px; color:#479;
+    display:flex; align-items:center; justify-content:center;
+  }
+
+  /* newsletter revolving banner */
+  .banner {
+    min-height: 90px; display:flex; align-items:center; justify-content:center; gap:12px;
+    background: #2a2a2a; color: #ddd; border:none;
+  }
+  .banner .rot { border:1px dashed #777; padding:6px 12px; border-radius:4px; }
+</style>
+</head>
+<body>
+
+<!-- ===== persistent chrome ===== -->
+<header id="topbar">
+  <span class="logo">ALFA&nbsp;ITG</span>
+  <nav>
+    <a href="#products">Products</a>
+    <a href="#proof">Proof</a>
+    <a class="cta" href="#contact">Contact</a>
+  </nav>
+</header>
+
+<a class="corner-cta" id="cornerCta" href="#contact">Contact ↗</a>
+
+<div class="progress" id="progress"><!-- segments + skip arrows injected by JS --></div>
+
+<!-- ===== beats ===== -->
+
+<section id="hero" data-label="Hero">
+  <span class="tag pin">PIN</span>
+  <div class="vidlabel">[ F-22 video loop — full-bleed background ]</div>
+  <div class="beatno">BEAT 1</div>
+  <h2>Hero</h2>
+  <p class="role">"We are an Industrial AI company." Hook + atmosphere; 5-sec relevance check.</p>
+  <div class="box">PROBLEM copy (1b) fades in over the still-flying jet → name the pain</div>
+</section>
+
+<section id="transition" data-label="Transition">
+  <span class="tag pin">PIN + SCRUB</span>
+  <div class="beatno">BEAT 2 — showpiece #1</div>
+  <h2>Jet → Schematic</h2>
+  <p class="role">Jet flies across, explodes into its schematic. Thesis: "we see the machine, not the surface."</p>
+  <div class="box">↳ settles into THESIS + NAV HUB (2b): schematic holds, hotspots become teleport targets</div>
+</section>
+
+<section id="products" data-label="Products">
+  <span class="tag pin">PIN + SCRUB</span>
+  <div class="beatno">BEAT 3 — showpiece #2</div>
+  <h2>Product Unfold</h2>
+  <p class="role">Schematic folds out — one ALFA_* product per reveal, rhythmic pulses.</p>
+  <div class="box">[ product 1 ] [ product 2 ] [ product 3 ] [ product 4 ] [ product 5 ]</div>
+</section>
+
+<section id="proof" data-label="Proof">
+  <span class="tag free">FREE</span>
+  <div class="beatno">BEAT 4</div>
+  <h2>Proof</h2>
+  <p class="role">The gate before any ask — "it actually works."</p>
+  <div class="box">HARD NUMBER (e.g. "310% ROI") + analyst / ROI signal</div>
+</section>
+
+<section id="grid" data-label="Grid">
+  <span class="tag free">FREE</span>
+  <div class="beatno">BEAT 5</div>
+  <h2>Summary Grid</h2>
+  <p class="role">2nd table of contents — the fast <em>utility index</em> (vs. the cinematic map in Beat 2).</p>
+  <div class="box">▢ ▢ ▢ &nbsp; ▢ ▢ ▢ &nbsp; (scannable grid of everything)</div>
+</section>
+
+<section id="fishtank" data-label="Fish tank">
+  <span class="tag free">FREE</span>
+  <div class="beatno">BEAT 6</div>
+  <h2>Client Fish Tank</h2>
+  <p class="role">Clients swim like fish; tank fills its space on arrival. Hover → fish settles + reveals services.</p>
+  <div class="tank">
+    <div class="fish" style="top:30px; left:40px;">client</div>
+    <div class="fish" style="top:120px; left:180px;">client</div>
+    <div class="fish" style="top:70px; left:360px;">client</div>
+    <div class="fish" style="top:170px; left:480px;">client</div>
+    <div class="fish" style="top:40px; left:540px;">client</div>
+  </div>
+</section>
+
+<section id="contact" data-label="Contact">
+  <span class="tag pin">PIN</span>
+  <div class="beatno">BEAT 7</div>
+  <h2>Contact Finale</h2>
+  <p class="role">Everything converges to one CTA — the conversion event.</p>
+  <div class="box">[ Book a call ] &nbsp; or &nbsp; [ email us ]</div>
+</section>
+
+<section id="newsletter" data-label="Newsletter" class="banner">
+  <span class="rot">↻ revolving banner</span>
+  <span>Newsletter signup — low-commitment email capture (catches the ~95% not ready today)</span>
+</section>
+
+<script>
+/* --- tiny helpers so the chrome behaviour reads, not for production --- */
+
+// build progress bar: one segment per section + a skip arrow between each
+const sections = [...document.querySelectorAll('section')];
+const prog = document.getElementById('progress');
+sections.forEach((s, i) => {
+  const seg = document.createElement('div');
+  seg.className = 'seg'; seg.title = s.dataset.label;
+  seg.onclick = () => s.scrollIntoView({behavior:'smooth'});
+  prog.appendChild(seg);
+  if (i < sections.length - 1) {            // skip arrow -> jump to next section
+    const a = document.createElement('div');
+    a.className = 'arrow'; a.textContent = '▾'; a.title = 'Skip to next';
+    a.onclick = () => sections[i+1].scrollIntoView({behavior:'smooth'});
+    prog.appendChild(a);
+  }
+});
+const segs = [...prog.querySelectorAll('.seg')];
+
+// active segment = section currently in view
+const io = new IntersectionObserver(es => es.forEach(e => {
+  if (e.isIntersecting) {
+    const i = sections.indexOf(e.target);
+    segs.forEach((sg,j)=>sg.classList.toggle('active', j===i));
+  }
+}), {threshold:.5});
+sections.forEach(s => io.observe(s));
+
+// header hides on scroll-down / shows on scroll-up; corner CTA appears past hero
+let lastY = 0;
+const bar = document.getElementById('topbar');
+const corner = document.getElementById('cornerCta');
+addEventListener('scroll', () => {
+  const y = scrollY;
+  bar.classList.toggle('hidden', y > lastY && y > 80);
+  corner.classList.toggle('show', y > innerHeight * 0.8);
+  lastY = y;
+});
+</script>
+</body>
+</html>

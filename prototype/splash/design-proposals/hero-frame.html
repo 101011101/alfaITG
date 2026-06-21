@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<!--
+  HERO FRAME SIZE COMPARISON  —  open this file in a browser to view.
+
+  The hero is a "scroll-to-expand" media frame: a rounded media box (the F-22 video)
+  centered on a full-bleed dark background, with an "Industrial / AI" headline and a
+  "Scroll to expand" hint. Owner feedback: the current frame is too big and leaves
+  dead space below it. This page stacks 3 labeled panels to compare frame sizes:
+
+    1. CURRENT          ~70% of viewport. Big frame, visible DEAD SPACE below it.
+    2. SHRUNK-MEDIUM    ~55% of viewport. Tighter centering, frame+caption fill cleanly.
+    3. SHRUNK-COMPACT   ~45% of viewport. Contained "card" feel, balanced breathing room.
+
+  Each frame has a thin labeled outline so the size difference is obvious.
+  Pure HTML/CSS, fully offline — gradient placeholders stand in for the video.
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hero Frame — Size Comparison</title>
+<style>
+  :root {
+    --bg: #0b0b0c;
+    --ink: #f4f4f6;
+    --muted: #8a8a93;
+    --hairline: rgba(255,255,255,0.16);
+    --accent: #6ea8ff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased; }
+
+  .page-head { padding: 40px 32px 8px; max-width: 980px; margin: 0 auto; }
+  .page-head h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
+  .page-head p { color: var(--muted); font-size: 14px; margin-top: 8px; line-height: 1.5; }
+
+  /* Each comparison panel */
+  .panel {
+    position: relative;
+    height: 70vh;
+    min-height: 520px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    /* Full-bleed background standing in for the dark scene behind the hero */
+    background:
+      radial-gradient(120% 90% at 50% 0%, rgba(40,46,66,0.55) 0%, rgba(11,11,12,0) 60%),
+      var(--bg);
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Panel label chip (top-left) */
+  .panel-tag {
+    position: absolute; top: 16px; left: 20px; z-index: 5;
+    font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--muted);
+    border: 1px solid var(--hairline); border-radius: 999px;
+    padding: 5px 12px; background: rgba(11,11,12,0.6);
+  }
+
+  /* The stage holds the frame; alignment differs per variant */
+  .stage { flex: 1; display: flex; align-items: center; justify-content: center; padding: 56px 24px 0; }
+
+  /* The media frame itself — a rounded rect with a gradient standing in for video */
+  .frame {
+    position: relative;
+    aspect-ratio: 3 / 4;
+    border-radius: 22px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.10);
+    box-shadow: 0 30px 80px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.03) inset;
+    /* Faux F-22 / sky video — layered gradients */
+    background:
+      linear-gradient(180deg, rgba(0,0,0,0.0) 40%, rgba(0,0,0,0.45) 100%),
+      radial-gradient(80% 60% at 30% 25%, rgba(150,180,220,0.55), rgba(150,180,220,0) 60%),
+      linear-gradient(160deg, #2b3a55 0%, #18202f 45%, #0d1119 100%);
+  }
+  /* a faint "aircraft" silhouette streak */
+  .frame::after {
+    content: ""; position: absolute; left: 18%; top: 46%;
+    width: 64%; height: 3px; border-radius: 3px;
+    background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.45) 50%, rgba(255,255,255,0) 100%);
+    transform: rotate(-8deg); filter: blur(0.3px);
+  }
+
+  /* Headline + hint overlaid on the frame */
+  .frame-overlay {
+    position: absolute; inset: 0; z-index: 2;
+    display: flex; flex-direction: column; justify-content: space-between;
+    padding: 22px 22px 18px;
+  }
+  .headline { font-weight: 600; letter-spacing: -0.01em; line-height: 1.0;
+    text-shadow: 0 2px 18px rgba(0,0,0,0.6); }
+  .headline .b { display: block; }
+  .headline .slash { color: var(--accent); }
+  .hint { display: flex; align-items: center; gap: 8px;
+    color: rgba(244,244,246,0.82); font-size: 12px; letter-spacing: 0.04em; }
+  .hint .chev { width: 14px; height: 14px; border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor; transform: rotate(45deg); opacity: 0.8;
+    animation: bob 1.6s ease-in-out infinite; }
+  @keyframes bob { 0%,100% { transform: translateY(0) rotate(45deg); }
+    50% { transform: translateY(4px) rotate(45deg); } }
+
+  /* Thin labeled outline indicating frame bounds + size badge */
+  .size-badge {
+    position: absolute; left: 50%; bottom: -30px; transform: translateX(-50%);
+    white-space: nowrap; font-size: 11px; color: var(--muted);
+    letter-spacing: 0.06em; border: 1px dashed var(--hairline);
+    padding: 3px 10px; border-radius: 6px; background: rgba(11,11,12,0.7);
+  }
+
+  /* Caption under the stage describing size + trade-off */
+  .caption { padding: 0 24px 26px; text-align: center; }
+  .caption .name { font-size: 13px; font-weight: 600; color: var(--ink); letter-spacing: 0.02em; }
+  .caption .desc { font-size: 13px; color: var(--muted); line-height: 1.5; max-width: 620px; margin: 6px auto 0; }
+
+  /* Dead-space marker (only on the CURRENT panel) */
+  .deadspace {
+    margin: 0 24px 18px; height: 90px;
+    border: 1px dashed rgba(255,120,120,0.5); border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    color: rgba(255,150,150,0.85); font-size: 12px; letter-spacing: 0.08em;
+    text-transform: uppercase; background: rgba(255,80,80,0.04);
+  }
+
+  /* ---- Per-variant frame heights (relative to viewport) ---- */
+  /* 1. CURRENT: large frame, top-biased stage to expose dead space below */
+  .v-current  .stage { align-items: flex-start; }
+  .v-current  .frame { height: 70vh; }
+
+  /* 2. MEDIUM: ~55% viewport, true vertical centering, no dead space */
+  .v-medium   .frame { height: 55vh; }
+
+  /* 3. COMPACT: ~45% viewport, contained card */
+  .v-compact  .frame { height: 45vh; }
+
+  /* Headline scales loosely with frame size */
+  .v-current  .headline { font-size: 30px; }
+  .v-medium   .headline { font-size: 26px; }
+  .v-compact  .headline { font-size: 22px; }
+
+  .legend { max-width: 980px; margin: 8px auto 60px; padding: 16px 32px;
+    color: var(--muted); font-size: 12.5px; line-height: 1.6; }
+  .legend b { color: var(--ink); font-weight: 600; }
+  .swatch { display:inline-block; width:24px; height:0; vertical-align: middle;
+    border-top: 1px dashed rgba(255,120,120,0.6); margin-right:6px; }
+</style>
+</head>
+<body>
+
+  <header class="page-head">
+    <h1>Hero Frame — Size Comparison</h1>
+    <p>Three options for the scroll-to-expand media frame. Goal: remove the dead space below the
+       frame while keeping the hero impactful. Dashed outlines mark each frame's bounds and size.</p>
+  </header>
+
+  <!-- 1. CURRENT (baseline) -->
+  <section class="panel v-current">
+    <span class="panel-tag">1 · Current (baseline)</span>
+    <div class="stage">
+      <div class="frame">
+        <div class="frame-overlay">
+          <div class="headline"><span class="b">Industrial</span><span class="b slash">/ AI</span></div>
+          <div class="hint"><span class="chev"></span> Scroll to expand</div>
+        </div>
+        <span class="size-badge">frame ≈ 70% of viewport (grows from ~300×400)</span>
+      </div>
+    </div>
+    <div class="deadspace"><span class="swatch"></span>Dead space — nothing fills this gap</div>
+    <div class="caption">
+      <div class="name">Current — large frame, top-anchored</div>
+      <div class="desc">Maximum presence, but the frame sits high and leaves an awkward empty band
+        beneath it before the next section. The hero feels unbalanced and "unfinished" below the fold.</div>
+    </div>
+  </section>
+
+  <!-- 2. SHRUNK-MEDIUM -->
+  <section class="panel v-medium">
+    <span class="panel-tag">2 · Shrunk · Medium</span>
+    <div class="stage">
+      <div class="frame">
+        <div class="frame-overlay">
+          <div class="headline"><span class="b">Industrial</span><span class="b slash">/ AI</span></div>
+          <div class="hint"><span class="chev"></span> Scroll to expand</div>
+        </div>
+        <span class="size-badge">frame ≈ 55% of viewport</span>
+      </div>
+    </div>
+    <div class="caption">
+      <div class="name">Shrunk-Medium — ~55%, true centering</div>
+      <div class="desc">Frame and caption are vertically centered so they fill the panel cleanly — no
+        dead space. Still commanding and cinematic, with room for the headline to breathe.
+        Best balance of impact and tidiness.</div>
+    </div>
+  </section>
+
+  <!-- 3. SHRUNK-COMPACT -->
+  <section class="panel v-compact">
+    <span class="panel-tag">3 · Shrunk · Compact</span>
+    <div class="stage">
+      <div class="frame">
+        <div class="frame-overlay">
+          <div class="headline"><span class="b">Industrial</span><span class="b slash">/ AI</span></div>
+          <div class="hint"><span class="chev"></span> Scroll to expand</div>
+        </div>
+        <span class="size-badge">frame ≈ 45% of viewport</span>
+      </div>
+    </div>
+    <div class="caption">
+      <div class="name">Shrunk-Compact — ~45%, contained card</div>
+      <div class="desc">Reads as a tidy "card" with generous, balanced breathing room. Clearly smaller and
+        very clean, but sacrifices some of the full-bleed drama the scroll-to-expand effect relies on.</div>
+    </div>
+  </section>
+
+  <p class="legend">
+    <b>Legend:</b> &nbsp;<span class="swatch"></span> dashed red = dead space &nbsp;·&nbsp;
+    dashed grey badge = frame size &nbsp;·&nbsp; gradient fill stands in for the F-22 video.
+    &nbsp; All percentages are relative to viewport height (the expand effect would still animate from a
+    small start size up to these caps).
+  </p>
+
+</body>
+</html>

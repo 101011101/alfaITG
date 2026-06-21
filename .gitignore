@@ -1,0 +1,10 @@
+# Claude session notes — not part of the project
+claude history/
+
+# Dependencies / build output
+node_modules/
+dist/
+
+# OS / local
+.DS_Store
+*.local

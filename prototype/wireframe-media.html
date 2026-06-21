@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<!--
+  Alfa ITG — Cinematic Taster: WIREFRAME w/ PLACEHOLDER MEDIA + lorem ipsum.
+  Goal: see the FEEL/where media sits. Not themed, not final.
+
+  All media here are PLACEHOLDERS:
+   - F-22 video + stills = US Air Force footage via Wikimedia Commons = PUBLIC DOMAIN
+   - blueprint / factory-robot images = Wikimedia Commons (free license)
+   - picsum.photos / placehold.co = generic filler
+  Final assets (real hero, real 3D schematic, real client logos, real proof
+  number) still need sourcing — see docs/cinematic-taster-prd.md notes.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alfa ITG — Taster Wireframe (media)</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.6 ui-monospace,"SF Mono",Menlo,monospace; color:#eee; background:#111; }
+  img, video { display:block; }
+
+  /* banner flagging these are placeholders */
+  .ph-flag { position:fixed; bottom:6px; left:6px; z-index:60; font-size:10px;
+    color:#bbb; background:rgba(0,0,0,.6); padding:4px 8px; border-radius:4px; }
+
+  /* persistent chrome */
+  header { position:fixed; top:0; left:0; right:0; height:56px; z-index:50;
+    display:flex; align-items:center; justify-content:space-between; padding:0 24px;
+    background:rgba(17,17,17,.85); border-bottom:1px solid #333; transition:transform .3s; }
+  header.hidden { transform:translateY(-100%); }
+  .logo { font-weight:700; letter-spacing:2px; }
+  nav a { margin-left:18px; color:#aaa; text-decoration:none; font-size:13px; }
+  .cta { padding:6px 14px; border:1px solid #2d6; border-radius:4px; color:#2d6; }
+  .corner-cta { position:fixed; right:20px; bottom:20px; z-index:50; padding:10px 16px;
+    background:#2d6; border-radius:6px; color:#042; font-weight:700; text-decoration:none;
+    opacity:0; transition:opacity .3s; pointer-events:none; }
+  .corner-cta.show { opacity:1; pointer-events:auto; }
+  .progress { position:fixed; right:14px; top:50%; transform:translateY(-50%); z-index:50;
+    display:flex; flex-direction:column; align-items:center; gap:2px; }
+  .progress .seg { width:4px; height:24px; background:#555; border-radius:2px; cursor:pointer; transition:.2s; }
+  .progress .seg.active { background:#fff; height:32px; }
+  .progress .arrow { font-size:9px; color:#666; cursor:pointer; }
+  .progress .arrow:hover { color:#fff; }
+
+  /* beats */
+  section { min-height:100vh; display:flex; flex-direction:column; align-items:center;
+    justify-content:center; text-align:center; padding:60px 40px; position:relative; border-bottom:1px solid #222; }
+  .beatno { font-size:11px; color:#777; letter-spacing:3px; }
+  h2 { margin:8px 0; font-size:30px; font-weight:600; }
+  .lorem { color:#999; max-width:560px; }
+  .tag { position:absolute; top:14px; left:14px; font-size:10px; padding:3px 8px; border-radius:3px; letter-spacing:.5px; }
+  .pin { background:#69f; color:#fff; } .free { background:#444; color:#ccc; }
+
+  /* hero video full-bleed */
+  #hero { padding:0; justify-content:flex-end; }
+  #hero video { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:0; filter:brightness(.55); }
+  .hero-copy { position:relative; z-index:1; padding:80px 40px; }
+  .hero-copy h2 { font-size:42px; }
+
+  /* transition: jet still + schematic side by side */
+  .split { display:flex; gap:30px; align-items:center; flex-wrap:wrap; justify-content:center; margin-top:20px; }
+  .split img { width:320px; height:200px; object-fit:cover; border:1px solid #333; }
+  .split .schem { background:#fff; object-fit:contain; padding:10px; }
+
+  /* product unfold row */
+  .prow { display:flex; gap:16px; flex-wrap:wrap; justify-content:center; margin-top:22px; }
+  .pcard { width:200px; border:1px solid #333; background:#1a1a1a; }
+  .pcard img { width:100%; height:120px; object-fit:cover; }
+  .pcard .pc { padding:10px; text-align:left; }
+  .pcard h3 { margin:0 0 6px; font-size:14px; color:#fff; }
+  .pcard p { margin:0; font-size:11px; color:#888; }
+
+  /* proof */
+  .bignum { font-size:80px; font-weight:800; color:#2d6; }
+
+  /* grid */
+  .grid { display:grid; grid-template-columns:repeat(3,180px); gap:14px; margin-top:22px; }
+  .grid img { width:180px; height:110px; object-fit:cover; border:1px solid #333; }
+
+  /* fish tank */
+  .tank { margin-top:20px; width:min(720px,92%); height:280px; border:1px solid #3a6a8a;
+    border-radius:12px; background:radial-gradient(circle at 50% 40%, #11303f, #0a1a22); position:relative; overflow:hidden; }
+  .fish { position:absolute; padding:6px; background:#fff; border-radius:4px; }
+  .fish img { width:80px; height:34px; object-fit:contain; }
+
+  /* newsletter banner */
+  .banner { min-height:110px; background:#000; }
+  .rot { display:inline-block; border:1px dashed #555; padding:8px 16px; border-radius:4px; color:#bbb; }
+</style>
+</head>
+<body>
+
+<div class="ph-flag">⚠ placeholder media — public-domain stand-ins, not final assets</div>
+
+<header id="topbar">
+  <span class="logo">ALFA ITG</span>
+  <nav><a href="#products">Products</a><a href="#proof">Proof</a><a class="cta" href="#contact">Contact</a></nav>
+</header>
+<a class="corner-cta" id="cornerCta" href="#contact">Contact ↗</a>
+<div class="progress" id="progress"></div>
+
+<!-- 1 HERO -->
+<section id="hero" data-label="Hero">
+  <span class="tag pin">PIN</span>
+  <video autoplay muted loop playsinline
+    poster="https://upload.wikimedia.org/wikipedia/commons/8/8e/F-22_Raptor_flying_at_twilight_190728-F-VA182-1014.jpg">
+    <source src="https://upload.wikimedia.org/wikipedia/commons/1/17/F-22_Raptor_Refuel.webm" type="video/webm">
+  </video>
+  <div class="hero-copy">
+    <div class="beatno">BEAT 1</div>
+    <h2>Lorem ipsum dolor sit amet</h2>
+    <p class="lorem">Consectetur adipiscing elit. We are an Industrial AI company — sed do eiusmod tempor incididunt ut labore.</p>
+  </div>
+</section>
+
+<!-- 2 TRANSITION -->
+<section id="transition" data-label="Transition">
+  <span class="tag pin">PIN + SCRUB</span>
+  <div class="beatno">BEAT 2 — showpiece #1</div>
+  <h2>Jet → Schematic</h2>
+  <p class="lorem">Ut enim ad minim veniam — the jet flies across and explodes into its schematic (real version = 3D scrub).</p>
+  <div class="split">
+    <img src="https://upload.wikimedia.org/wikipedia/commons/c/c0/Two_F-22_Raptor_in_flying.jpg" alt="jet">
+    <span style="font-size:30px;color:#666;">→</span>
+    <img class="schem" src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/346_ST-ne.svg/500px-346_ST-ne.svg.png" alt="schematic">
+  </div>
+</section>
+
+<!-- 3 PRODUCTS -->
+<section id="products" data-label="Products">
+  <span class="tag pin">PIN + SCRUB</span>
+  <div class="beatno">BEAT 3 — showpiece #2</div>
+  <h2>Product Unfold</h2>
+  <p class="lorem">Schematic folds out — one product per reveal (lorem ipsum names below).</p>
+  <div class="prow">
+    <div class="pcard"><img src="https://upload.wikimedia.org/wikipedia/commons/9/9b/FANUC_6-axis_welding_robots.jpg"><div class="pc"><h3>Lorem_SAVE</h3><p>Dolor sit amet consectetur adipiscing elit.</p></div></div>
+    <div class="pcard"><img src="https://picsum.photos/seed/optimum/400/240"><div class="pc"><h3>Lorem_OPTIMUM</h3><p>Sed do eiusmod tempor incididunt ut labore.</p></div></div>
+    <div class="pcard"><img src="https://picsum.photos/seed/train/400/240"><div class="pc"><h3>Lorem_TRAIN</h3><p>Ut enim ad minim veniam quis nostrud.</p></div></div>
+    <div class="pcard"><img src="https://upload.wikimedia.org/wikipedia/commons/1/13/Robotic_Arm_Polishing_Guitars_at_Martin_Guitar_Factory.jpg"><div class="pc"><h3>Lorem_PROTOTYPE</h3><p>Exercitation ullamco laboris nisi ut.</p></div></div>
+    <div class="pcard"><img src="https://upload.wikimedia.org/wikipedia/commons/2/22/Factory_Automation_Robotics_Palettizing_Bread.jpg"><div class="pc"><h3>Lorem_MAINTENANCE</h3><p>Aliquip ex ea commodo consequat duis.</p></div></div>
+  </div>
+</section>
+
+<!-- 4 PROOF -->
+<section id="proof" data-label="Proof">
+  <span class="tag free">FREE</span>
+  <div class="beatno">BEAT 4</div>
+  <h2>Proof</h2>
+  <div class="bignum">XXX%</div>
+  <p class="lorem">[ real, sourced ROI number goes here ] — lorem ipsum dolor sit amet, analyst badge / case-study line.</p>
+</section>
+
+<!-- 5 GRID -->
+<section id="grid" data-label="Grid">
+  <span class="tag free">FREE</span>
+  <div class="beatno">BEAT 5</div>
+  <h2>Summary Grid</h2>
+  <p class="lorem">Fast utility index — lorem ipsum, scannable.</p>
+  <div class="grid">
+    <img src="https://picsum.photos/seed/g1/360/220"><img src="https://picsum.photos/seed/g2/360/220"><img src="https://picsum.photos/seed/g3/360/220">
+    <img src="https://picsum.photos/seed/g4/360/220"><img src="https://picsum.photos/seed/g5/360/220"><img src="https://picsum.photos/seed/g6/360/220">
+  </div>
+</section>
+
+<!-- 6 FISH TANK -->
+<section id="fishtank" data-label="Fish tank">
+  <span class="tag free">FREE</span>
+  <div class="beatno">BEAT 6</div>
+  <h2>Client Fish Tank</h2>
+  <p class="lorem">Clients swim like fish; hover settles a logo + reveals services. (logos = placeholders)</p>
+  <div class="tank">
+    <div class="fish" style="top:30px;left:40px;"><img src="https://placehold.co/80x34/eee/333?text=CLIENT"></div>
+    <div class="fish" style="top:120px;left:200px;"><img src="https://placehold.co/80x34/eee/333?text=CLIENT"></div>
+    <div class="fish" style="top:70px;left:380px;"><img src="https://placehold.co/80x34/eee/333?text=CLIENT"></div>
+    <div class="fish" style="top:180px;left:520px;"><img src="https://placehold.co/80x34/eee/333?text=CLIENT"></div>
+    <div class="fish" style="top:40px;left:600px;"><img src="https://placehold.co/80x34/eee/333?text=CLIENT"></div>
+  </div>
+</section>
+
+<!-- 7 CONTACT -->
+<section id="contact" data-label="Contact">
+  <span class="tag pin">PIN</span>
+  <div class="beatno">BEAT 7</div>
+  <h2>Contact Finale</h2>
+  <p class="lorem">Lorem ipsum — everything converges to one CTA.</p>
+  <p><a class="cta" href="#" style="font-size:16px;padding:12px 24px;">Book a call</a></p>
+</section>
+
+<!-- 8 NEWSLETTER -->
+<section id="newsletter" data-label="Newsletter" class="banner">
+  <span class="rot">↻ revolving banner — newsletter signup (lorem ipsum, low-commitment email capture)</span>
+</section>
+
+<script>
+const sections=[...document.querySelectorAll('section')], prog=document.getElementById('progress');
+sections.forEach((s,i)=>{ const seg=document.createElement('div'); seg.className='seg'; seg.title=s.dataset.label;
+  seg.onclick=()=>s.scrollIntoView({behavior:'smooth'}); prog.appendChild(seg);
+  if(i<sections.length-1){ const a=document.createElement('div'); a.className='arrow'; a.textContent='▾'; a.title='Skip to next';
+    a.onclick=()=>sections[i+1].scrollIntoView({behavior:'smooth'}); prog.appendChild(a);} });
+const segs=[...prog.querySelectorAll('.seg')];
+new IntersectionObserver(es=>es.forEach(e=>{ if(e.isIntersecting){ const i=sections.indexOf(e.target);
+  segs.forEach((sg,j)=>sg.classList.toggle('active',j===i)); }}),{threshold:.5}).observe&&
+  sections.forEach(s=>new IntersectionObserver(es=>es.forEach(e=>{ if(e.isIntersecting){ const i=sections.indexOf(e.target);
+    segs.forEach((sg,j)=>sg.classList.toggle('active',j===i)); }}),{threshold:.5}).observe(s));
+let lastY=0; const bar=document.getElementById('topbar'), corner=document.getElementById('cornerCta');
+addEventListener('scroll',()=>{ const y=scrollY; bar.classList.toggle('hidden',y>lastY&&y>80);
+  corner.classList.toggle('show',y>innerHeight*0.8); lastY=y; });
+</script>
+</body>
+</html>
