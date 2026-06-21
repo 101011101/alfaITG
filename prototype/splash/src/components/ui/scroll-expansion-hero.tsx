@@ -13,6 +13,7 @@ import {
   WheelEvent,
 } from 'react';
 import { motion } from 'framer-motion';
+import { frameScroll } from '@/lib/frameScroll';
 
 interface ScrollExpandMediaProps {
   mediaType?: 'video' | 'image';
@@ -53,6 +54,18 @@ const ScrollExpandMedia = ({
     setShowContent(false);
     setMediaFullyExpanded(false);
   }, [mediaType]);
+
+  // The hero gate: while the zoom runs, the frame engine is OFF (the hero owns the
+  // wheel). Once fully expanded, hand the wheel to the engine. Scrolling up at the
+  // engine's top frame hands back here to collapse (via onTopUp).
+  useEffect(() => {
+    frameScroll.setOnTopUp(() => setMediaFullyExpanded(false));
+  }, []);
+
+  useEffect(() => {
+    if (mediaFullyExpanded) frameScroll.start();
+    else frameScroll.stop();
+  }, [mediaFullyExpanded]);
 
   useEffect(() => {
     const handleWheel = (e: WheelEvent) => {

@@ -17,32 +17,32 @@ export function HeroSection() {
         mediaSrc="/media/videos/f22-refuel.webm"
         posterSrc="/media/images/hero/f22-twilight.jpg"
         bgImageSrc="/media/images/hero/f22-twilight.jpg"
-        title="Industrial AI"
-        date="Alfa ITG"
+        title="Alfa ITG"
+        date="Industrial AI"
         scrollToExpand="Scroll to expand"
         textBlend
         mediaOverlay={
           <div className="max-w-3xl text-center">
             <h2 className="text-3xl font-bold text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)] md:text-5xl">
-              We see the machine, not the surface.
+              Empowering Fortune 500s with Industrial AI Solutions.
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-base text-white/90 drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] md:text-lg">
-              Raw industrial signal → decisions you can trust on the line.
-              Sensing, assurance, orchestration, and a live digital twin on one
-              industrial-AI core.
+              Our proprietary Industrial AI suite leverages Generative AI on
+              real-time data — predicting, automating, and interpreting action
+              from complex data sets across the line.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
               <button
                 onClick={() => goto("contact")}
                 className="rounded-md bg-white px-6 py-3 font-semibold text-black transition-transform hover:scale-[1.03]"
               >
-                Book a call
+                Begin Your Transformation
               </button>
               <button
                 onClick={() => goto("products")}
                 className="rounded-md border border-white/60 px-6 py-3 font-semibold text-white transition-colors hover:bg-white/10"
               >
-                Explore products
+                Explore solutions
               </button>
             </div>
           </div>

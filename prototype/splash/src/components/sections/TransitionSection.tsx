@@ -9,7 +9,7 @@
 // Background is now transparent — the Silent-Precision pixel canvas shows through.
 import RadialOrbitalTimeline from "@/components/ui/radial-orbital-timeline";
 import { SplineScene } from "@/components/ui/splite";
-import { PRODUCTS } from "@/lib/products";
+import { COMPANY } from "@/lib/products";
 import { NeonTag, NEON } from "@/components/_diag";
 
 export function TransitionSection() {
@@ -40,17 +40,17 @@ export function TransitionSection() {
       {/* Orbit — ON TOP, container non-interactive (moves pass through to the
           robot); only the nodes capture hover/click. */}
       <div className="pointer-events-none absolute inset-0 z-[20]">
-        <RadialOrbitalTimeline timelineData={PRODUCTS} />
+        <RadialOrbitalTimeline timelineData={COMPANY} />
       </div>
 
-      {/* Thesis copy. */}
-      <div className="pointer-events-none absolute left-1/2 top-12 z-[30] -translate-x-1/2 px-4 text-center">
+      {/* Thesis copy. Sits BELOW the orbit (z-20) so an expanded product card
+          renders on top of it, but ABOVE the robot (z-10) so it stays readable. */}
+      <div className="pointer-events-none absolute left-1/2 top-12 z-[15] -translate-x-1/2 px-4 text-center">
         <h2 className="text-2xl font-bold text-foreground md:text-3xl">
-          We see the machine, not the surface.
+          The company behind the machine
         </h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Move your cursor — the robot follows you. Hover a product to stop the
-          orbit and read it.
+          A leader in Industrial AI since 1990. Hover a node to learn who we are.
         </p>
       </div>
     </section>

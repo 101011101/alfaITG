@@ -28,7 +28,7 @@ export function ProductsSection() {
     <section className="relative h-full w-full overflow-hidden">
       <NeonTag color={NEON.products} label="PRODUCTS" />
       <h2 className="absolute top-10 left-1/2 z-20 -translate-x-1/2 text-3xl font-bold text-foreground drop-shadow">
-        Products
+        Our Key Offerings
       </h2>
 
       {/* Full-bleed tilted marquee plane. */}

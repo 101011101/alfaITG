@@ -3,6 +3,7 @@ import { SplashBackground } from "./components/SplashBackground";
 import { LogoBanner } from "./components/LogoBanner";
 import { HeroSection } from "./components/sections/HeroSection";
 import { HorizontalRail } from "./components/HorizontalRail";
+import { frameScroll } from "./lib/frameScroll";
 
 const BEATS = [
   { id: "hero", label: "Hero" },
@@ -12,25 +13,69 @@ const BEATS = [
   { id: "contact", label: "Contact" },
 ];
 
-const goto = (id: string) =>
-  document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+const goto = (id: string) => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  frameScroll.goToPos(el.getBoundingClientRect().top + window.scrollY);
+};
 
 export default function App() {
   const [hideBar, setHideBar] = useState(false);
   const [showCorner, setShowCorner] = useState(false);
   const [active, setActive] = useState(0);
   const lastY = useRef(0);
+  const idleTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const cursorAtTop = useRef(false);
 
-  // Header hides on scroll-down / shows on scroll-up; corner CTA appears past hero.
+  // Header behaviour:
+  //  - scroll down -> hide; scroll up / at-top -> reveal
+  //  - once revealed, auto-hide after a couple seconds of inactivity
+  //  - cursor near the top edge pops it out and pins it open while hovering there
   useEffect(() => {
+    const IDLE_MS = 2200; // inactivity before the revealed header tucks away
+    const TOP_ZONE = 90; // px from the top that counts as "near the header"
+
+    const scheduleHide = () => {
+      clearTimeout(idleTimer.current);
+      if (cursorAtTop.current) return; // stay open while the cursor lingers up top
+      idleTimer.current = setTimeout(() => setHideBar(true), IDLE_MS);
+    };
+
     const onScroll = () => {
       const y = window.scrollY;
-      setHideBar(y > lastY.current && y > 80);
       setShowCorner(y > window.innerHeight * 0.8);
+      if (y <= 80) {
+        setHideBar(false); // at the very top the header always shows
+        clearTimeout(idleTimer.current);
+      } else if (y < lastY.current) {
+        setHideBar(false); // scrolling up reveals it...
+        scheduleHide(); // ...but it tucks away again if you go idle
+      } else {
+        setHideBar(true); // scrolling down hides it immediately
+        clearTimeout(idleTimer.current);
+      }
       lastY.current = y;
     };
+
+    const onMove = (e: MouseEvent) => {
+      const atTop = e.clientY <= TOP_ZONE;
+      if (atTop && !cursorAtTop.current) {
+        cursorAtTop.current = true;
+        setHideBar(false);
+        clearTimeout(idleTimer.current);
+      } else if (!atTop && cursorAtTop.current) {
+        cursorAtTop.current = false;
+        scheduleHide(); // cursor left the zone -> resume the idle countdown
+      }
+    };
+
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    window.addEventListener("mousemove", onMove, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("mousemove", onMove);
+      clearTimeout(idleTimer.current);
+    };
   }, []);
 
   // Active progress segment = section currently in view.
@@ -52,92 +97,26 @@ export default function App() {
     return () => io.disconnect();
   }, []);
 
-  // Scroll snap with a "speed bump" / minimum ESCAPE VELOCITY.
-  // To LEAVE the current frame you must scroll with intent (peak velocity ≥ ESCAPE).
-  // A gentle scroll — or leftover inertia that merely drifts toward the next frame —
-  // is TRAPPED and pulled back to the frame the gesture started from. A deliberate
-  // fast flick escapes and advances. Snap points = hero (0) + every rail sentinel.
+  // Feed the frame-scroll engine the frame positions (hero top + each rail
+  // sentinel), recomputed on resize / layout change. The hero starts/stops the
+  // engine; this effect only keeps the positions current.
   useEffect(() => {
-    const SNAP_IDS = ["transition", "products", "proof", "contact"];
-    const ESCAPE = 1.3;          // px/ms (smoothed) needed to escape a frame — tunable
-    const SETTLE_MS = 140;       // wait after scroll stops before deciding
-    const NEW_GESTURE_GAP = 180; // a pause longer than this begins a fresh gesture
-
-    let timer: ReturnType<typeof setTimeout>;
-    let snapping = false;
-    let lastY = window.scrollY;
-    let lastT = performance.now();
-    let vel = 0; // smoothed velocity (px/ms)
-    let peak = 0; // peak smoothed velocity this gesture
-    let anchor = -1; // frame index the current gesture started from
-
-    const points = () => {
+    const SNAP_IDS = ["transition", "products", "proof", "contact", "footer"];
+    const compute = () => {
       const ys = [0];
       for (const id of SNAP_IDS) {
         const el = document.getElementById(id);
         if (el) ys.push(Math.round(el.getBoundingClientRect().top + window.scrollY));
       }
-      return ys.sort((a, b) => a - b);
+      frameScroll.setFrames(ys);
     };
-    const nearest = (pts: number[], y: number) => {
-      let bi = 0;
-      let bd = Infinity;
-      pts.forEach((p, i) => {
-        const d = Math.abs(p - y);
-        if (d < bd) {
-          bd = d;
-          bi = i;
-        }
-      });
-      return bi;
-    };
-
-    const decide = () => {
-      if (snapping) return;
-      const pts = points();
-      const y = window.scrollY;
-      const near = nearest(pts, y);
-      if (anchor < 0 || anchor >= pts.length) anchor = near;
-      // Settle if we never left; else ESCAPE (fast) or get TRAPPED back (slow).
-      const targetIdx = near === anchor ? anchor : peak >= ESCAPE ? near : anchor;
-      const target = pts[targetIdx];
-      anchor = targetIdx;
-      peak = 0;
-      vel = 0;
-      if (Math.abs(target - y) > 1) {
-        snapping = true;
-        window.scrollTo({ top: target, behavior: "smooth" });
-        window.setTimeout(() => {
-          snapping = false;
-          lastY = window.scrollY;
-          lastT = performance.now();
-        }, 650);
-      }
-    };
-
-    const onScroll = () => {
-      if (snapping) return;
-      const now = performance.now();
-      const y = window.scrollY;
-      const dt = Math.max(now - lastT, 1);
-      if (now - lastT > NEW_GESTURE_GAP) {
-        vel = 0;
-        peak = 0;
-        anchor = nearest(points(), y); // remember where this gesture began
-      }
-      const inst = Math.min(Math.abs(y - lastY) / dt, 4); // clamp single-event spikes
-      vel = vel * 0.75 + inst * 0.25; // smooth
-      peak = Math.max(peak, vel);
-      lastY = y;
-      lastT = now;
-      clearTimeout(timer);
-      timer = setTimeout(decide, SETTLE_MS);
-    };
-
-    window.addEventListener("scroll", onScroll, { passive: true });
+    compute();
+    window.addEventListener("resize", compute);
+    const ro = new ResizeObserver(compute);
+    ro.observe(document.body);
     return () => {
-      window.removeEventListener("scroll", onScroll);
-      clearTimeout(timer);
+      window.removeEventListener("resize", compute);
+      ro.disconnect();
     };
   }, []);
 
@@ -171,7 +150,7 @@ export default function App() {
       {/* Always-visible corner CTA (appears after hero) */}
       <button
         onClick={() => goto("contact")}
-        className={`fixed bottom-5 right-5 z-50 rounded-md bg-emerald-400 px-4 py-2 font-bold text-emerald-950 shadow-lg transition-opacity duration-300 ${
+        className={`fixed bottom-5 right-5 z-50 rounded border border-foreground/40 bg-background/80 px-3 py-1 text-foreground backdrop-blur transition-opacity duration-300 hover:bg-accent ${
           showCorner ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
       >

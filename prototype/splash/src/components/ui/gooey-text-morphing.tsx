@@ -3,6 +3,13 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
+// Inverse smoothstep: fast at the ends (snaps into/out of the sharp word),
+// slow through the middle (lingers on the gooey morph). t and result in [0,1].
+const easeMorph = (t: number) => {
+  const x = Math.min(Math.max(t, 0), 1);
+  return 0.5 - Math.sin(Math.asin(1 - 2 * x) / 3);
+};
+
 interface GooeyTextProps {
   texts: string[];
   morphTime?: number;
@@ -21,11 +28,23 @@ export function GooeyText({
   const text1Ref = React.useRef<HTMLSpanElement>(null);
   const text2Ref = React.useRef<HTMLSpanElement>(null);
 
+  // Keep the latest texts in a ref so the animation loop always reads current
+  // copy WITHOUT re-firing the effect when the parent passes a new array literal.
+  const textsRef = React.useRef(texts);
+  textsRef.current = texts;
+
   React.useEffect(() => {
-    let textIndex = texts.length - 1;
+    const list = textsRef.current;
+    let textIndex = list.length - 1;
     let time = new Date();
     let morph = 0;
     let cooldown = cooldownTime;
+
+    // Seed the spans immediately so nothing is blank during the first cooldown.
+    if (text1Ref.current && text2Ref.current) {
+      text1Ref.current.textContent = list[textIndex % list.length];
+      text2Ref.current.textContent = list[(textIndex + 1) % list.length];
+    }
 
     const setMorph = (fraction: number) => {
       if (text1Ref.current && text2Ref.current) {
@@ -58,11 +77,16 @@ export function GooeyText({
         fraction = 1;
       }
 
-      setMorph(fraction);
+      // Remap the linear time-progress so the morph is fast near the sharp
+      // endpoints and slow through the gooey middle.
+      setMorph(easeMorph(fraction));
     };
 
+    let raf = 0;
+
     function animate() {
-      requestAnimationFrame(animate);
+      raf = requestAnimationFrame(animate);
+      const current = textsRef.current;
       const newTime = new Date();
       const shouldIncrementIndex = cooldown > 0;
       const dt = (newTime.getTime() - time.getTime()) / 1000;
@@ -72,10 +96,10 @@ export function GooeyText({
 
       if (cooldown <= 0) {
         if (shouldIncrementIndex) {
-          textIndex = (textIndex + 1) % texts.length;
+          textIndex = (textIndex + 1) % current.length;
           if (text1Ref.current && text2Ref.current) {
-            text1Ref.current.textContent = texts[textIndex % texts.length];
-            text2Ref.current.textContent = texts[(textIndex + 1) % texts.length];
+            text1Ref.current.textContent = current[textIndex % current.length];
+            text2Ref.current.textContent = current[(textIndex + 1) % current.length];
           }
         }
         doMorph();
@@ -86,26 +110,27 @@ export function GooeyText({
 
     animate();
 
-    return () => {
-      // Cleanup function if needed
-    };
-  }, [texts, morphTime, cooldownTime]);
+    // Cancel the loop on teardown so re-runs (and StrictMode's mount→unmount→
+    // mount) never leave orphaned rAF loops stacking on the same spans.
+    return () => cancelAnimationFrame(raf);
+  }, [morphTime, cooldownTime]);
 
   return (
     <div className={cn("relative", className)}>
       <svg className="absolute h-0 w-0" aria-hidden="true" focusable="false">
         <defs>
           <filter id="threshold">
-            {/* Intrinsic blur so the metaball merge happens EVERY transition,
-                not just when CSS-blurred words happen to overlap. */}
-            <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur" />
+            {/* Pure alpha threshold — NO intrinsic blur, so a settled word stays
+                crisp. The gooey merge during a transition comes from the per-span
+                CSS blur below: both words sit centered on the same spot, so their
+                blurred alpha overlaps and this threshold fuses it into blobs. */}
             <feColorMatrix
-              in="blur"
+              in="SourceGraphic"
               type="matrix"
               values="1 0 0 0 0
                       0 1 0 0 0
                       0 0 1 0 0
-                      0 0 0 255 -110"
+                      0 0 0 19 -9"
             />
           </filter>
         </defs>
@@ -118,7 +143,7 @@ export function GooeyText({
         <span
           ref={text1Ref}
           className={cn(
-            "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 inline-block select-none whitespace-nowrap text-center text-6xl md:text-[60pt]",
+            "absolute left-1/2 top-1/2 w-full -translate-x-1/2 -translate-y-1/2 select-none px-4 text-center leading-tight break-words text-[clamp(1.75rem,7vw,3.5rem)]",
             "text-foreground",
             textClassName
           )}
@@ -126,7 +151,7 @@ export function GooeyText({
         <span
           ref={text2Ref}
           className={cn(
-            "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 inline-block select-none whitespace-nowrap text-center text-6xl md:text-[60pt]",
+            "absolute left-1/2 top-1/2 w-full -translate-x-1/2 -translate-y-1/2 select-none px-4 text-center leading-tight break-words text-[clamp(1.75rem,7vw,3.5rem)]",
             "text-foreground",
             textClassName
           )}
