@@ -17,15 +17,6 @@ export function TransitionSection() {
     <section className="relative h-full w-full overflow-hidden">
       <NeonTag color={NEON.robot} label="ROBOT" />
 
-      {/* Ghosted airframe schematic — "we see the machine". */}
-      <div className="pointer-events-none absolute inset-0 z-[5] flex items-center justify-center">
-        <img
-          src="/media/images/schematic/airframe-cutaway.png"
-          alt=""
-          className="w-[70vw] max-w-3xl opacity-[0.06] invert"
-        />
-      </div>
-
       {/* Robot — BELOW the orbit, interactive across the WHOLE frame so it tracks
           the cursor everywhere (the canvas now fills the panel, not a 460px box). */}
       <div className="pointer-events-none absolute inset-0 z-[10] flex items-center justify-center">

@@ -13,6 +13,15 @@ const BEATS = [
   { id: "contact", label: "Contact" },
 ];
 
+// Header nav — friendly labels for the frames worth jumping to (logo = Hero).
+// `id`s line up with BEATS so the active frame can highlight its nav item.
+const NAV = [
+  { id: "transition", label: "About" },
+  { id: "products", label: "Products" },
+  { id: "proof", label: "Proof" },
+  { id: "contact", label: "Contact" },
+];
+
 const goto = (id: string) => {
   const el = document.getElementById(id);
   if (!el) return;

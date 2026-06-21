@@ -63,7 +63,9 @@ const ScrollExpandMedia = ({
   }, []);
 
   useEffect(() => {
-    if (mediaFullyExpanded) frameScroll.start();
+    // start LOCKED so the zoom-completing scroll rests on the expanded hero
+    // frame instead of bleeding straight through to the robot.
+    if (mediaFullyExpanded) frameScroll.start(true);
     else frameScroll.stop();
   }, [mediaFullyExpanded]);
 

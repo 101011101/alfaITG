@@ -178,6 +178,59 @@ function drive() {
   }
 }
 
+// Animate to a specific frame index (used by keyboard + nav links).
+function goToIndex(i: number) {
+  navTarget = Math.max(0, Math.min(frames.length - 1, i));
+  vel = 0;
+  locked = false;
+  mode = "nav";
+}
+
+// Step one frame from wherever we are.
+function step(dir: number) {
+  goToIndex(nearestIndex(pos) + dir);
+}
+
+// Any NON-scroll input (keyboard) snaps frame-by-frame. Ignored while a form field
+// is focused so typing/space/arrows still work in inputs.
+function onKey(e: KeyboardEvent) {
+  if (!running) return;
+  const el = document.activeElement as HTMLElement | null;
+  if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) {
+    return;
+  }
+  switch (e.key) {
+    case "ArrowDown":
+    case "ArrowRight":
+    case "PageDown":
+      e.preventDefault();
+      step(1);
+      break;
+    case "ArrowUp":
+    case "ArrowLeft":
+    case "PageUp":
+      e.preventDefault();
+      // At the very top, hand back to the hero (collapse); else step up a frame.
+      if (nearestIndex(pos) === 0) onTopUp?.();
+      else step(-1);
+      break;
+    case " ": // Space / Shift+Space
+      e.preventDefault();
+      step(e.shiftKey ? -1 : 1);
+      break;
+    case "Home":
+      e.preventDefault();
+      goToIndex(0);
+      break;
+    case "End":
+      e.preventDefault();
+      goToIndex(frames.length - 1);
+      break;
+    default:
+      break;
+  }
+}
+
 export const frameScroll = {
   setFrames(positions: number[]) {
     frames = positions.slice().sort((a, b) => a - b);
@@ -188,17 +241,28 @@ export const frameScroll = {
   isRunning() {
     return running;
   },
-  start() {
+  // lockTail=true begins LOCKED at the current frame so the gesture that started
+  // the engine (e.g. the hero's completing zoom scroll) can't bleed straight
+  // through to the next frame — the user must pause and scroll again. This gives
+  // the hero the same "beat" every other frame already has via its notch lock.
+  start(lockTail = false) {
     if (running) return;
     running = true;
     pos = window.scrollY;
     vel = 0;
     mode = "free";
-    locked = false;
     decaying = false;
     peakAbs = 0;
     lastScrolled = -1;
+    if (lockTail) {
+      locked = true;
+      lockDir = 1; // the zoom-completing gesture travels downward
+      lastWheelT = performance.now(); // treat the continuing tail as the same gesture
+    } else {
+      locked = false;
+    }
     window.addEventListener("wheel", onWheel, { passive: false });
+    window.addEventListener("keydown", onKey);
     raf = requestAnimationFrame(tick);
   },
   stop() {
@@ -206,13 +270,11 @@ export const frameScroll = {
     if (raf) cancelAnimationFrame(raf);
     raf = 0;
     window.removeEventListener("wheel", onWheel);
+    window.removeEventListener("keydown", onKey);
   },
   /** Animate to the frame nearest a given scroll position (used by nav links). */
   goToPos(y: number) {
-    navTarget = nearestIndex(y);
-    vel = 0;
-    locked = false;
-    mode = "nav";
+    goToIndex(nearestIndex(y));
   },
   tune(patch: Partial<Tunables>) {
     Object.assign(T, patch);
