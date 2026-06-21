@@ -57,12 +57,27 @@ export default function InkReveal({
   enabled = true,
 }: InkRevealProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const stampsRef = useRef<Stamp[]>([]);
   const runningRef = useRef(false);
   const lastPosRef = useRef<{ x: number; y: number } | null>(null);
   const dimsRef = useRef({ w: 0, h: 0 });
 
+  // Depend on the primitive channels, not the array identity. `maskColor`
+  // arrives as an inline literal (a new reference every render), which would
+  // otherwise bust the resize/loop memoization and re-subscribe listeners /
+  // reallocate the canvas on every render.
   const mc = maskColor;
+  const maskRgb = `rgb(${mc[0]},${mc[1]},${mc[2]})`;
+
+  // Lazily cache the 2d context instead of re-getting it on every call.
+  const getCtx = useCallback(() => {
+    if (ctxRef.current) return ctxRef.current;
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    ctxRef.current = canvas.getContext("2d");
+    return ctxRef.current;
+  }, []);
 
   const resize = useCallback(() => {
     const canvas = canvasRef.current;
@@ -79,13 +94,13 @@ export default function InkReveal({
     canvas.height = Math.round(h * dpr);
     canvas.style.width = `${w}px`;
     canvas.style.height = `${h}px`;
-    const ctx = canvas.getContext("2d");
+    const ctx = getCtx();
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.globalCompositeOperation = "source-over";
-    ctx.fillStyle = `rgb(${mc[0]},${mc[1]},${mc[2]})`;
+    ctx.fillStyle = maskRgb;
     ctx.fillRect(0, 0, w, h);
-  }, [mc]);
+  }, [getCtx, maskRgb]);
 
   const carveInk = useCallback(
     (
@@ -158,16 +173,14 @@ export default function InkReveal({
   );
 
   const loop = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
+    const ctx = getCtx();
     if (!ctx) return;
     const { w, h } = dimsRef.current;
     const now = performance.now();
     const stamps = stampsRef.current;
 
     ctx.globalCompositeOperation = "source-over";
-    ctx.fillStyle = `rgb(${mc[0]},${mc[1]},${mc[2]})`;
+    ctx.fillStyle = maskRgb;
     ctx.fillRect(0, 0, w, h);
     ctx.globalCompositeOperation = "destination-out";
 
@@ -188,7 +201,7 @@ export default function InkReveal({
     } else {
       runningRef.current = false;
     }
-  }, [carveInk, mc, lifetime, rStart]);
+  }, [carveInk, getCtx, maskRgb, lifetime, rStart]);
 
   const startLoop = useCallback(() => {
     if (!runningRef.current) {

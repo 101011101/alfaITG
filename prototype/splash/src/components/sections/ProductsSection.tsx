@@ -1,10 +1,9 @@
 // BEAT 3 — Products: full-bleed tilted 3D marquee. Rendered as a horizontal-rail panel.
-import type { ElementType } from "react";
 import { Marquee } from "@/components/ui/marquee";
 import { Card, CardContent } from "@/components/ui/card";
 import { PRODUCTS, type Product } from "@/lib/products";
 
-function ProductCard({ title, blurb, image, icon: Icon }: Product & { icon: ElementType }) {
+function ProductCard({ title, blurb, image, icon: Icon }: Product) {
   return (
     <Card className="w-60 overflow-hidden">
       <img src={image} alt="" className="h-28 w-full object-cover" />
@@ -13,9 +12,9 @@ function ProductCard({ title, blurb, image, icon: Icon }: Product & { icon: Elem
           <span className="flex size-9 items-center justify-center rounded-full bg-muted">
             <Icon className="size-4" />
           </span>
-          <figcaption className="text-sm font-medium text-foreground">{title}</figcaption>
+          <p className="text-sm font-medium text-foreground">{title}</p>
         </div>
-        <blockquote className="mt-3 text-sm text-muted-foreground">{blurb}</blockquote>
+        <p className="mt-3 text-sm text-muted-foreground">{blurb}</p>
       </CardContent>
     </Card>
   );
@@ -48,11 +47,21 @@ const V_MASK =
   " rgba(0,0,0,0.85) 84%, rgba(0,0,0,0.5) 89%, rgba(0,0,0,0.15) 95%, rgba(0,0,0,0) 100%)";
 
 // Intersect the two so a pixel survives only if BOTH masks keep it (clean corners too).
+//
+// will-change + translateZ(0) promote this wrapper to its OWN backing layer so the mask
+// is baked into that layer's texture and travels as one unit when the horizontal rail
+// translates the track. Without it the mask is a separate compositor step that lands a
+// frame behind during fast scroll, briefly exposing card colour at the leading edge.
+// overflow:hidden hard-clips the scale(1.15) spill at the panel box by layout (reliable
+// every frame) instead of trusting the lagging mask to hide it.
 const MASK_STYLE = {
   WebkitMaskImage: `${H_MASK}, ${V_MASK}`,
   maskImage: `${H_MASK}, ${V_MASK}`,
   WebkitMaskComposite: "source-in",
   maskComposite: "intersect",
+  overflow: "hidden",
+  willChange: "transform",
+  transform: "translateZ(0)",
 } as const;
 
 export function ProductsSection() {

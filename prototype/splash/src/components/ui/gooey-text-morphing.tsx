@@ -36,7 +36,7 @@ export function GooeyText({
   React.useEffect(() => {
     const list = textsRef.current;
     let textIndex = list.length - 1;
-    let time = new Date();
+    let time = performance.now();
     let morph = 0;
     let cooldown = cooldownTime;
 
@@ -84,12 +84,13 @@ export function GooeyText({
 
     let raf = 0;
 
-    function animate() {
+    // newTime is the rAF timestamp (same clock as performance.now()), so the loop
+    // reads frame time without allocating a Date object each frame.
+    function animate(newTime: number) {
       raf = requestAnimationFrame(animate);
       const current = textsRef.current;
-      const newTime = new Date();
       const shouldIncrementIndex = cooldown > 0;
-      const dt = (newTime.getTime() - time.getTime()) / 1000;
+      const dt = (newTime - time) / 1000;
       time = newTime;
 
       cooldown -= dt;
@@ -108,7 +109,8 @@ export function GooeyText({
       }
     }
 
-    animate();
+    // Seed the first frame with the same timestamp as `time` so the initial dt is ~0.
+    animate(time);
 
     // Cancel the loop on teardown so re-runs (and StrictMode's mount→unmount→
     // mount) never leave orphaned rAF loops stacking on the same spans.

@@ -32,6 +32,17 @@ interface ScrollExpandMediaProps {
   mediaOverlay?: ReactNode;
 }
 
+// Zoom thresholds (shared by wheel/key/touch): at/above SNAP_THRESHOLD the last
+// stretch snaps to a fully-expanded frame; below HIDE_THRESHOLD the revealed
+// content hides again. Per-input multipliers convert raw gesture deltas into a
+// 0..1 progress step.
+const SNAP_THRESHOLD = 0.87;
+const HIDE_THRESHOLD = 0.75;
+const WHEEL_MULTIPLIER = 0.0009;
+const KEY_STEP = 0.18; // fraction of the zoom per arrow/page/space press (~6 presses to expand)
+const TOUCH_FORWARD_MULTIPLIER = 0.005;
+const TOUCH_BACK_MULTIPLIER = 0.008; // higher sensitivity for scrolling back
+
 const ScrollExpandMedia = ({
   mediaType = 'video',
   mediaSrc,
@@ -112,26 +123,41 @@ const ScrollExpandMedia = ({
     // Reduced-motion: skip the scroll-hijack handlers entirely — native scrolling.
     if (reducedMotion) return;
 
-    const handleWheel = (e: WheelEvent) => {
-      if (mediaFullyExpanded && e.deltaY < 0 && window.scrollY <= 5) {
+    // Shared zoom-advance: add `delta` to the live progress, then either snap to
+    // a fully-expanded frame (>= SNAP_THRESHOLD) or update progress and hide the
+    // revealed content if we dropped below HIDE_THRESHOLD. Used by wheel/key/touch.
+    const advanceProgress = (delta: number): void => {
+      const newProgress = Math.min(
+        Math.max(scrollProgressRef.current + delta, 0),
+        1
+      );
+      if (newProgress >= SNAP_THRESHOLD) {
+        // snap the last stretch — completes the hero "zoom" into a full frame
+        setScrollProgress(1);
+        setMediaFullyExpanded(true);
+        setShowContent(true);
+      } else {
+        setScrollProgress(newProgress);
+        if (newProgress < HIDE_THRESHOLD) setShowContent(false);
+      }
+    };
+
+    // When expanded + at the top + scrolling up, hand control back to the hero to
+    // collapse it. Returns true if it collapsed (caller should preventDefault/stop).
+    const tryCollapseAtTop = (): boolean => {
+      if (mediaFullyExpanded && window.scrollY <= 5) {
         setMediaFullyExpanded(false);
+        return true;
+      }
+      return false;
+    };
+
+    const handleWheel = (e: WheelEvent) => {
+      if (mediaFullyExpanded && e.deltaY < 0 && tryCollapseAtTop()) {
         e.preventDefault();
       } else if (!mediaFullyExpanded) {
         e.preventDefault();
-        const scrollDelta = e.deltaY * 0.0009;
-        const newProgress = Math.min(
-          Math.max(scrollProgressRef.current + scrollDelta, 0),
-          1
-        );
-        if (newProgress >= 0.87) {
-          // snap the last 13% — completes the hero "zoom" into a full frame
-          setScrollProgress(1);
-          setMediaFullyExpanded(true);
-          setShowContent(true);
-        } else {
-          setScrollProgress(newProgress);
-          if (newProgress < 0.75) setShowContent(false);
-        }
+        advanceProgress(e.deltaY * WHEEL_MULTIPLIER);
       }
     };
 
@@ -153,8 +179,7 @@ const ScrollExpandMedia = ({
       if (!down && !up) return;
 
       // Expanded + at the top + going up → hand back to the hero (collapse).
-      if (mediaFullyExpanded && up && window.scrollY <= 5) {
-        setMediaFullyExpanded(false);
+      if (mediaFullyExpanded && up && tryCollapseAtTop()) {
         e.preventDefault();
         return;
       }
@@ -162,19 +187,7 @@ const ScrollExpandMedia = ({
       // expanded, frameScroll's own key handler takes the frame-to-frame steps.
       if (!mediaFullyExpanded) {
         e.preventDefault();
-        const STEP = 0.18; // fraction of the zoom per press (~6 presses to expand)
-        const newProgress = Math.min(
-          Math.max(scrollProgressRef.current + (down ? STEP : -STEP), 0),
-          1
-        );
-        if (newProgress >= 0.87) {
-          setScrollProgress(1);
-          setMediaFullyExpanded(true);
-          setShowContent(true);
-        } else {
-          setScrollProgress(newProgress);
-          if (newProgress < 0.75) setShowContent(false);
-        }
+        advanceProgress(down ? KEY_STEP : -KEY_STEP);
       }
     };
 
@@ -188,28 +201,14 @@ const ScrollExpandMedia = ({
       const touchY = e.touches[0].clientY;
       const deltaY = touchStartYRef.current - touchY;
 
-      if (mediaFullyExpanded && deltaY < -20 && window.scrollY <= 5) {
-        setMediaFullyExpanded(false);
+      if (mediaFullyExpanded && deltaY < -20 && tryCollapseAtTop()) {
         e.preventDefault();
       } else if (!mediaFullyExpanded) {
         e.preventDefault();
-        // Increase sensitivity for mobile, especially when scrolling back
-        const scrollFactor = deltaY < 0 ? 0.008 : 0.005; // Higher sensitivity for scrolling back
-        const scrollDelta = deltaY * scrollFactor;
-        const newProgress = Math.min(
-          Math.max(scrollProgressRef.current + scrollDelta, 0),
-          1
-        );
-        if (newProgress >= 0.87) {
-          // snap the last 13% — completes the hero "zoom" into a full frame
-          setScrollProgress(1);
-          setMediaFullyExpanded(true);
-          setShowContent(true);
-        } else {
-          setScrollProgress(newProgress);
-          if (newProgress < 0.75) setShowContent(false);
-        }
-
+        // Higher sensitivity for scrolling back (deltaY < 0) than forward.
+        const scrollFactor =
+          deltaY < 0 ? TOUCH_BACK_MULTIPLIER : TOUCH_FORWARD_MULTIPLIER;
+        advanceProgress(deltaY * scrollFactor);
         touchStartYRef.current = touchY;
       }
     };
@@ -303,7 +302,7 @@ const ScrollExpandMedia = ({
           >
             <img
               src={bgImageSrc}
-              alt='Background'
+              alt=''
               className='w-screen h-screen'
               style={{
                 objectFit: 'cover',

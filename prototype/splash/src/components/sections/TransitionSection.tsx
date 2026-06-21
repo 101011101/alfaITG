@@ -16,13 +16,11 @@ export function TransitionSection() {
     <section className="relative h-full w-full overflow-hidden">
       {/* Robot — BELOW the orbit, interactive across the WHOLE frame so it tracks
           the cursor everywhere (the canvas now fills the panel, not a 460px box). */}
-      <div className="pointer-events-none absolute inset-0 z-[10] flex items-center justify-center">
-        <div className="pointer-events-auto relative h-full w-full">
-          <SplineScene
-            scene="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode"
-            className="h-full w-full"
-          />
-        </div>
+      <div className="pointer-events-auto absolute inset-0 z-[10]">
+        <SplineScene
+          scene="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode"
+          className="h-full w-full"
+        />
       </div>
 
       {/* Orbit — ON TOP, container non-interactive (moves pass through to the

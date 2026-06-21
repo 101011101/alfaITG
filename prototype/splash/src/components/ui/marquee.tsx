@@ -42,7 +42,6 @@ export function Marquee({
       aria-label={ariaLabel}
       aria-live={ariaLive}
       role={ariaRole}
-      tabIndex={0}
     >
       {React.useMemo(
         () => (

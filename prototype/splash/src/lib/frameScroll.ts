@@ -413,7 +413,7 @@ export const frameScroll = {
   },
 };
 
-// Live tuning handle in the console.
-if (typeof window !== "undefined") {
+// Live tuning handle in the console. DEV-only so it isn't exposed in production builds.
+if (import.meta.env.DEV && typeof window !== "undefined") {
   (window as unknown as { __frameScroll: typeof frameScroll }).__frameScroll = frameScroll;
 }

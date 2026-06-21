@@ -17,7 +17,7 @@ export function HeroSection() {
         // .mp4 here as the Safari fallback. poster is always set on the <video>, so
         // even if every source fails the user still sees the still frame.
         mediaSrc="/media/videos/f22-hero.mp4"
-        posterSrc="/media/images/hero/f22-twilight.jpg"
+        posterSrc="/media/images/hero/f22-hero-poster.jpg"
         bgImageSrc="/media/images/hero/f22-twilight.jpg"
         title="Alfa ITG"
         date="Industrial AI"

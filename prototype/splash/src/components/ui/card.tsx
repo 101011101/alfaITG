@@ -76,4 +76,6 @@ const CardFooter = React.forwardRef<
 ))
 CardFooter.displayName = "CardFooter"
 
+// NOTE: CardDescription and CardFooter are currently unused, but kept as part of
+// the standard shadcn Card surface so the primitive stays complete and reusable.
 export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent }

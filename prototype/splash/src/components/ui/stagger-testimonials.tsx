@@ -153,7 +153,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ position, item, handleMove, cardSiz
       style={{
         width: cardSize,
         height: cardSize,
-        clipPath: `polygon(40px 0%, calc(100% - 0px) 0%, 100% 0px, 100% 100%, calc(100% - 0px) 100%, 0 100%, 0 0)`,
+        clipPath: `polygon(40px 0%, 100% 0%, 100% 100%, 0 100%, 0 0)`,
         transform: `
           translate(-50%, -50%)
           translateX(${(cardSize / 1.5) * position}px)

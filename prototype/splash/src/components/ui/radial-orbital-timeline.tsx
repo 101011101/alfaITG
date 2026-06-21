@@ -3,19 +3,9 @@
 // in a browser/Vite TS setup without @types/node. Behaviour identical.
 import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
-interface TimelineItem {
-  id: number;
-  title: string;
-  date: string;
-  content: string;
-  category: string;
-  icon: React.ElementType;
-  image: string;
-  relatedIds: number[];
-  status: "completed" | "in-progress" | "pending";
-  energy: number;
-}
+// Shared shape (single source of truth) — keeps timelineData structurally
+// coupled to products.ts COMPANY/PRODUCTS at compile time.
+import type { TimelineItem } from "@/lib/products";
 
 interface RadialOrbitalTimelineProps {
   timelineData: TimelineItem[];
@@ -27,6 +17,10 @@ export default function RadialOrbitalTimeline({
   const [expandedItems, setExpandedItems] = useState<Record<number, boolean>>(
     {}
   );
+  // `rotationAngle` is the *base* offset used for the static (React-rendered)
+  // layout — it only changes on click-to-center. The continuous idle spin lives
+  // entirely in `rotationRef` and is applied by mutating node DOM in the rAF
+  // tick (E4), so an idle orbit no longer re-renders all nodes ~60fps.
   const [rotationAngle, setRotationAngle] = useState<number>(0);
   const [autoRotate, setAutoRotate] = useState<boolean>(true);
   const [pulseEffect, setPulseEffect] = useState<Record<number, boolean>>({});
@@ -34,96 +28,12 @@ export default function RadialOrbitalTimeline({
   const containerRef = useRef<HTMLDivElement>(null);
   const orbitRef = useRef<HTMLDivElement>(null);
   const nodeRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  // Accumulated idle-spin offset (degrees) added on top of `rotationAngle`.
+  const rotationRef = useRef<number>(0);
 
-  const handleContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === containerRef.current || e.target === orbitRef.current) {
-      setExpandedItems({});
-      setActiveNodeId(null);
-      setPulseEffect({});
-      setAutoRotate(true);
-    }
-  };
-
-  const toggleItem = (id: number) => {
-    setExpandedItems((prev) => {
-      const newState = { ...prev };
-      Object.keys(newState).forEach((key) => {
-        if (parseInt(key) !== id) {
-          newState[parseInt(key)] = false;
-        }
-      });
-
-      newState[id] = !prev[id];
-
-      if (!prev[id]) {
-        setActiveNodeId(id);
-        setAutoRotate(false);
-
-        const relatedItems = getRelatedItems(id);
-        const newPulseEffect: Record<number, boolean> = {};
-        relatedItems.forEach((relId) => {
-          newPulseEffect[relId] = true;
-        });
-        setPulseEffect(newPulseEffect);
-
-        centerViewOnNode(id);
-      } else {
-        setActiveNodeId(null);
-        setAutoRotate(true);
-        setPulseEffect({});
-      }
-
-      return newState;
-    });
-  };
-
-  // Hover a node → STOP the rotation and expand its card in place (no re-center).
-  const expandOnHover = (id: number) => {
-    setExpandedItems({ [id]: true });
-    setActiveNodeId(id);
-    setAutoRotate(false);
-    const newPulse: Record<number, boolean> = {};
-    getRelatedItems(id).forEach((relId) => (newPulse[relId] = true));
-    setPulseEffect(newPulse);
-  };
-
-  const collapseOnHover = () => {
-    setExpandedItems({});
-    setActiveNodeId(null);
-    setAutoRotate(true);
-    setPulseEffect({});
-  };
-
-  useEffect(() => {
-    // Smooth 60fps rotation via rAF (was a 20fps setInterval that fought the
-    // per-node CSS transition → the glitchy/steppy halo). ~6°/sec, same speed.
-    if (!autoRotate) return;
-    let raf = 0;
-    let last = 0;
-    const tick = (now: number) => {
-      if (last) {
-        const dt = now - last;
-        setRotationAngle((prev) => (prev + dt * 0.006) % 360);
-      }
-      last = now;
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [autoRotate]);
-
-  const centerViewOnNode = (nodeId: number) => {
-    if (!nodeRefs.current[nodeId]) return;
-
-    const nodeIndex = timelineData.findIndex((item) => item.id === nodeId);
-    const totalNodes = timelineData.length;
-    const targetAngle = (nodeIndex / totalNodes) * 360;
-
-    setRotationAngle(270 - targetAngle);
-  };
-
-  const calculateNodePosition = (index: number, total: number) => {
-    const angle = ((index / total) * 360 + rotationAngle) % 360;
+  // Pure geometry: position of node `index` at a given total rotation offset.
+  const computeNodeStyle = (index: number, total: number, offset: number) => {
+    const angle = ((index / total) * 360 + offset) % 360;
     const radius = 200;
     const radian = (angle * Math.PI) / 180;
 
@@ -139,13 +49,112 @@ export default function RadialOrbitalTimeline({
     return { x, y, angle, zIndex, opacity };
   };
 
+  // The static render uses base offset only; idle spin is layered on via rAF.
+  const calculateNodePosition = (index: number, total: number) =>
+    computeNodeStyle(index, total, rotationAngle);
+
   const getRelatedItems = (itemId: number): number[] => {
     const currentItem = timelineData.find((item) => item.id === itemId);
     return currentItem ? currentItem.relatedIds : [];
   };
 
+  // Freeze the orbit at its current spun position: fold accumulated idle spin
+  // into the React-rendered base so the static layout matches the DOM the rAF
+  // tick last drew (prevents a jump when auto-rotate stops).
+  const freezeRotation = () => {
+    if (rotationRef.current) {
+      const folded = rotationRef.current;
+      rotationRef.current = 0;
+      setRotationAngle((prev) => (prev + folded) % 360);
+    }
+  };
+
+  // Shared open/close bookkeeping (C6) — used by hover, click, and container click.
+  const openNode = (id: number, center: boolean) => {
+    setExpandedItems({ [id]: true });
+    setActiveNodeId(id);
+    setAutoRotate(false);
+    const newPulse: Record<number, boolean> = {};
+    getRelatedItems(id).forEach((relId) => (newPulse[relId] = true));
+    setPulseEffect(newPulse);
+    if (center) centerViewOnNode(id);
+    else freezeRotation();
+  };
+
+  const closeAll = () => {
+    setExpandedItems({});
+    setActiveNodeId(null);
+    setAutoRotate(true);
+    setPulseEffect({});
+  };
+
+  const handleContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === containerRef.current || e.target === orbitRef.current) {
+      closeAll();
+    }
+  };
+
+  const toggleItem = (id: number) => {
+    if (expandedItems[id]) {
+      closeAll();
+    } else {
+      openNode(id, true);
+    }
+  };
+
+  // Hover a node → STOP the rotation and expand its card in place (no re-center).
+  const expandOnHover = (id: number) => openNode(id, false);
+
+  const collapseOnHover = () => closeAll();
+
+  useEffect(() => {
+    // Smooth 60fps idle rotation via rAF (was a 20fps setInterval that fought
+    // the per-node CSS transition → the glitchy/steppy halo). ~6°/sec.
+    // Drives the spin by mutating node DOM directly (no setState) so idle
+    // rotation doesn't re-render the whole component each frame (E4).
+    if (!autoRotate) return;
+    let raf = 0;
+    let last = 0;
+    const total = timelineData.length;
+    const applyFrame = () => {
+      const offset = (rotationAngle + rotationRef.current) % 360;
+      timelineData.forEach((item, index) => {
+        const el = nodeRefs.current[item.id];
+        if (!el) return;
+        const { x, y, zIndex, opacity } = computeNodeStyle(index, total, offset);
+        el.style.transform = `translate(${x}px, ${y}px)`;
+        el.style.zIndex = String(zIndex);
+        el.style.opacity = String(opacity);
+      });
+    };
+    const tick = (now: number) => {
+      if (last) {
+        const dt = now - last;
+        rotationRef.current = (rotationRef.current + dt * 0.006) % 360;
+        applyFrame();
+      }
+      last = now;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+    // rotationAngle is read as the base offset; re-arm if it (or autoRotate) changes.
+  }, [autoRotate, rotationAngle, timelineData]);
+
+  const centerViewOnNode = (nodeId: number) => {
+    if (!nodeRefs.current[nodeId]) return;
+
+    const nodeIndex = timelineData.findIndex((item) => item.id === nodeId);
+    const totalNodes = timelineData.length;
+    const targetAngle = (nodeIndex / totalNodes) * 360;
+
+    // Fold any accumulated idle spin into the base, then re-center from there.
+    rotationRef.current = 0;
+    setRotationAngle(270 - targetAngle);
+  };
+
   const isRelatedToActive = (itemId: number): boolean => {
-    if (!activeNodeId) return false;
+    if (activeNodeId === null) return false;
     const relatedItems = getRelatedItems(activeNodeId);
     return relatedItems.includes(itemId);
   };

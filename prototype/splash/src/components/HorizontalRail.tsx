@@ -8,12 +8,15 @@ import { TransitionSection } from "./sections/TransitionSection";
 import { ProductsSection } from "./sections/ProductsSection";
 import { ProofPanel } from "./sections/ProofPanel";
 import InkReveal from "@/components/ui/ink-reveal";
-import { Paperclip } from "lucide-react";
 import { frameScroll } from "@/lib/frameScroll";
 
 const clamp = (v: number) => Math.min(Math.max(v, 0), 1);
 const PANELS = 3; // Robot, Products, Proof
 const CONTACT_EMAIL = "IR@alfaitg.com";
+// Rail height = one viewport per panel transition, plus the Contact + Footer
+// beats that follow the horizontal track. PANELS horizontal screens (Robot,
+// Products, Proof) + Contact + Footer = PANELS + 2 full-viewport beats.
+const RAIL_VH = (PANELS + 2) * 100; // 500vh
 
 export function HorizontalRail() {
   const railRef = useRef<HTMLElement>(null);
@@ -59,7 +62,12 @@ export function HorizontalRail() {
   };
 
   useEffect(() => {
-    const onScroll = () => {
+    // rAF-throttle: scroll/resize events only flag a pending update; the actual
+    // geometry read + style writes happen once per frame, coalescing bursts of
+    // events into a single reflow.
+    let rafId = 0;
+    const update = () => {
+      rafId = 0;
       const rail = railRef.current;
       const track = trackRef.current;
       const contact = contactRef.current;
@@ -90,17 +98,23 @@ export function HorizontalRail() {
         ctaRef.current.style.transform = `translateY(-${f * 30}vh)`;
     };
 
-    onScroll();
+    const onScroll = () => {
+      if (rafId) return; // a frame is already queued — coalesce this event
+      rafId = requestAnimationFrame(update);
+    };
+
+    update();
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
     return () => {
+      if (rafId) cancelAnimationFrame(rafId);
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
     };
   }, []);
 
   return (
-    <section ref={railRef} className="relative" style={{ height: "500vh" }}>
+    <section ref={railRef} className="relative" style={{ height: `${RAIL_VH}vh` }}>
       {/* vertical sentinels = progress-bar + nav anchors (no CSS snap) */}
       <div id="transition" data-label="Schematic" className="absolute top-0 h-px w-full" />
       <div id="products" data-label="Products" className="absolute h-px w-full" style={{ top: "100vh" }} />
@@ -164,7 +178,7 @@ export function HorizontalRail() {
             </p>
             <div className="flex flex-wrap items-center justify-center gap-4">
               <a
-                href="mailto:IR@alfaitg.com"
+                href={`mailto:${CONTACT_EMAIL}`}
                 tabIndex={revealed ? 0 : -1}
                 className="rounded-md bg-white px-6 py-3 font-semibold text-black transition-transform hover:scale-[1.03]"
               >
@@ -259,11 +273,8 @@ export function HorizontalRail() {
                     placeholder="Share Your Project Details"
                     className="resize-none rounded-md border border-white/20 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-white/50 focus:outline-none"
                   />
-                  <label className="flex w-fit cursor-pointer items-center gap-2 text-sm text-white/60 hover:text-white">
-                    <input type="file" multiple className="hidden" />
-                    <Paperclip className="size-4" /> Attach Files
-                    <span className="text-white/30">(Attachments 0)</span>
-                  </label>
+                  {/* Attachments removed: mailto: cannot carry files, so a real
+                      attach control here would be non-functional. */}
                   {formError && (
                     <p id="contact-error" role="alert" className="text-[12px] text-rose-300">
                       {formError}
@@ -293,10 +304,10 @@ export function HorizontalRail() {
                   We know that our clients have unique needs. Send us a message
                   and we will get back to you soon. You can reach us at{" "}
                   <a
-                    href="mailto:IR@alfaitg.com"
+                    href={`mailto:${CONTACT_EMAIL}`}
                     className="text-white/80 hover:text-white"
                   >
-                    IR@alfaitg.com
+                    {CONTACT_EMAIL}
                   </a>
                   .
                 </p>
@@ -315,6 +326,7 @@ export function HorizontalRail() {
                 <h3 className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-white">
                   Follow
                 </h3>
+                {/* TODO: replace href="#" with real social profile URLs. */}
                 <ul className="flex gap-4 text-sm text-white/60">
                   <li>
                     <a href="#" className="hover:text-white">

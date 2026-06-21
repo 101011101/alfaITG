@@ -19,11 +19,12 @@ import {
 // Beat-3 marquee share one source.
 // Images come from the placeholder kit (public/media/images/industrial/*).
 // TODO: swap placeholder imagery for real per-solution art when assets land.
-export interface Product {
+// The orbit-node shape consumed by RadialOrbitalTimeline. Exported here (rather
+// than re-declared in the component) so the structural coupling between
+// COMPANY: Product[] and timelineData: TimelineItem[] is compiler-enforced.
+export interface TimelineItem {
   id: number;
-  slug: string;
   title: string;
-  blurb: string;
   date: string;
   content: string;
   category: string;
@@ -33,6 +34,12 @@ export interface Product {
   status: "completed" | "in-progress" | "pending";
   energy: number;
 }
+
+// A Product is an orbit item plus the marquee-only fields (slug, blurb).
+export type Product = TimelineItem & {
+  slug: string;
+  blurb: string;
+};
 
 export const PRODUCTS: Product[] = [
   {

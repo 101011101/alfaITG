@@ -5,22 +5,22 @@ import { HeroSection } from "./components/sections/HeroSection";
 import { HorizontalRail } from "./components/HorizontalRail";
 import { frameScroll } from "./lib/frameScroll";
 
-const BEATS = [
+// Single source of truth for every beat of the page. Each view below is derived
+// from this array so the progress bar, header nav and snap engine can never drift:
+//  - `label`   : progress-bar / generic label (logo doubles as Hero, so hero needs no nav)
+//  - `navLabel`: friendly header-nav label; presence of it puts the beat in the nav
+//  - `isCta`   : render this nav item as the bordered call-to-action button
+type Beat = { id: string; label: string; navLabel?: string; isCta?: boolean };
+const BEATS: Beat[] = [
   { id: "hero", label: "Hero" },
-  { id: "transition", label: "Transition" },
-  { id: "products", label: "Products" },
-  { id: "proof", label: "Proof" },
-  { id: "contact", label: "Contact" },
+  { id: "transition", label: "Transition", navLabel: "About" },
+  { id: "products", label: "Products", navLabel: "Products" },
+  { id: "proof", label: "Proof", navLabel: "Proof" },
+  { id: "contact", label: "Contact", navLabel: "Contact", isCta: true },
 ];
 
-// Header nav — friendly labels for the frames worth jumping to (logo = Hero).
-// `id`s line up with BEATS so the active frame can highlight its nav item.
-const NAV = [
-  { id: "transition", label: "About" },
-  { id: "products", label: "Products" },
-  { id: "proof", label: "Proof" },
-  { id: "contact", label: "Contact" },
-];
+// Header nav — every beat that carries a friendly navLabel (logo = Hero).
+const NAV = BEATS.filter((b) => b.navLabel);
 
 const goto = (id: string) => {
   const el = document.getElementById(id);
@@ -99,22 +99,39 @@ export default function App() {
             if (i >= 0) setActive(i);
           }
         }),
-      { threshold: 0.5 },
+      { threshold: 0 },
     );
     sections.forEach((s) => io.observe(s));
     return () => io.disconnect();
+    // threshold:0 (any pixel visible), not 0.5: the watched targets are 1px
+    // `h-px` sentinels, where "50% visible" is a sub-pixel coin-flip that fires
+    // erratically. threshold:0 resolves the active beat reliably.
   }, []);
 
   // Feed the frame-scroll engine the frame positions (hero top + each rail
   // sentinel), recomputed on resize / layout change. The hero starts/stops the
   // engine; this effect only keeps the positions current.
   useEffect(() => {
-    const SNAP_IDS = ["transition", "products", "proof", "contact", "footer"];
+    // Snap frames = every beat past the hero (hero lives at position 0 above),
+    // plus the trailing "footer" sentinel. Derived from BEATS so it stays in
+    // lock-step with the nav / progress bar.
+    //
+    // COUPLING: these ids must match the sentinel <div id=...> elements rendered
+    // by HorizontalRail (the `h-px` markers the IntersectionObserver also watches).
+    // HorizontalRail is owned elsewhere — keep this list and its sentinels aligned.
+    const SNAP_IDS = [...BEATS.filter((b) => b.id !== "hero").map((b) => b.id), "footer"];
     const compute = () => {
       const ys = [0];
+      const missing: string[] = [];
       for (const id of SNAP_IDS) {
         const el = document.getElementById(id);
         if (el) ys.push(Math.round(el.getBoundingClientRect().top + window.scrollY));
+        else missing.push(id);
+      }
+      // DEV drift guard: a snap id with no matching sentinel <div id=...> means
+      // this list and HorizontalRail's rendered sentinels have fallen out of sync.
+      if (import.meta.env.DEV && missing.length) {
+        console.warn("[App] snap ids with no DOM sentinel (App↔HorizontalRail drift):", missing);
       }
       frameScroll.setFrames(ys);
     };
@@ -154,7 +171,7 @@ export default function App() {
         <nav className="flex items-center gap-5 text-sm text-muted-foreground">
           {NAV.map((item) => {
             const isActive = BEATS[active]?.id === item.id;
-            return item.id === "contact" ? (
+            return item.isCta ? (
               <button
                 key={item.id}
                 onClick={() => goto(item.id)}
@@ -162,7 +179,7 @@ export default function App() {
                   isActive ? "border-foreground bg-accent" : "border-foreground/40 hover:bg-accent"
                 }`}
               >
-                {item.label}
+                {item.navLabel}
               </button>
             ) : (
               <button
@@ -172,7 +189,7 @@ export default function App() {
                   isActive ? "text-foreground" : "hover:text-foreground"
                 }`}
               >
-                {item.label}
+                {item.navLabel}
               </button>
             );
           })}
