@@ -48,13 +48,18 @@ const ScrollExpandMedia = ({
   const [scrollProgress, setScrollProgress] = useState<number>(0);
   const [showContent, setShowContent] = useState<boolean>(false);
   const [mediaFullyExpanded, setMediaFullyExpanded] = useState<boolean>(false);
-  const [touchStartY, setTouchStartY] = useState<number>(0);
   const [isMobileState, setIsMobileState] = useState<boolean>(false);
   // When the user prefers reduced motion we skip the scroll-jack/zoom entirely and
   // present the media at its final (expanded) state with native scrolling.
   const [reducedMotion, setReducedMotion] = useState<boolean>(false);
 
   const sectionRef = useRef<HTMLDivElement | null>(null);
+  // The scroll-jack handlers (wheel/key/touch) read live progress + the touch
+  // anchor from refs so the listener effect doesn't re-bind on every gesture
+  // frame — re-subscribing 6 window listeners per wheel tick was the hot-path
+  // churn. scrollProgress stays state (drives render); the ref mirrors it.
+  const scrollProgressRef = useRef<number>(0);
+  const touchStartYRef = useRef<number>(0);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return;
@@ -97,6 +102,12 @@ const ScrollExpandMedia = ({
     else frameScroll.stop();
   }, [mediaFullyExpanded, reducedMotion]);
 
+  // Mirror scrollProgress into a ref so the gesture handlers can read the latest
+  // value without listing scrollProgress as a dependency of the listener effect.
+  useEffect(() => {
+    scrollProgressRef.current = scrollProgress;
+  }, [scrollProgress]);
+
   useEffect(() => {
     // Reduced-motion: skip the scroll-hijack handlers entirely — native scrolling.
     if (reducedMotion) return;
@@ -109,7 +120,7 @@ const ScrollExpandMedia = ({
         e.preventDefault();
         const scrollDelta = e.deltaY * 0.0009;
         const newProgress = Math.min(
-          Math.max(scrollProgress + scrollDelta, 0),
+          Math.max(scrollProgressRef.current + scrollDelta, 0),
           1
         );
         if (newProgress >= 0.87) {
@@ -153,7 +164,7 @@ const ScrollExpandMedia = ({
         e.preventDefault();
         const STEP = 0.18; // fraction of the zoom per press (~6 presses to expand)
         const newProgress = Math.min(
-          Math.max(scrollProgress + (down ? STEP : -STEP), 0),
+          Math.max(scrollProgressRef.current + (down ? STEP : -STEP), 0),
           1
         );
         if (newProgress >= 0.87) {
@@ -168,14 +179,14 @@ const ScrollExpandMedia = ({
     };
 
     const handleTouchStart = (e: TouchEvent) => {
-      setTouchStartY(e.touches[0].clientY);
+      touchStartYRef.current = e.touches[0].clientY;
     };
 
     const handleTouchMove = (e: TouchEvent) => {
-      if (!touchStartY) return;
+      if (!touchStartYRef.current) return;
 
       const touchY = e.touches[0].clientY;
-      const deltaY = touchStartY - touchY;
+      const deltaY = touchStartYRef.current - touchY;
 
       if (mediaFullyExpanded && deltaY < -20 && window.scrollY <= 5) {
         setMediaFullyExpanded(false);
@@ -186,7 +197,7 @@ const ScrollExpandMedia = ({
         const scrollFactor = deltaY < 0 ? 0.008 : 0.005; // Higher sensitivity for scrolling back
         const scrollDelta = deltaY * scrollFactor;
         const newProgress = Math.min(
-          Math.max(scrollProgress + scrollDelta, 0),
+          Math.max(scrollProgressRef.current + scrollDelta, 0),
           1
         );
         if (newProgress >= 0.87) {
@@ -199,12 +210,12 @@ const ScrollExpandMedia = ({
           if (newProgress < 0.75) setShowContent(false);
         }
 
-        setTouchStartY(touchY);
+        touchStartYRef.current = touchY;
       }
     };
 
     const handleTouchEnd = (): void => {
-      setTouchStartY(0);
+      touchStartYRef.current = 0;
     };
 
     const handleScroll = (): void => {
@@ -250,7 +261,7 @@ const ScrollExpandMedia = ({
       );
       window.removeEventListener('touchend', handleTouchEnd as EventListener);
     };
-  }, [scrollProgress, mediaFullyExpanded, touchStartY, reducedMotion]);
+  }, [mediaFullyExpanded, reducedMotion]);
 
   useEffect(() => {
     const checkIfMobile = (): void => {
@@ -335,11 +346,6 @@ const ScrollExpandMedia = ({
                         allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture'
                         allowFullScreen
                       />
-                      <div
-                        className='absolute inset-0 z-10'
-                        style={{ pointerEvents: 'none' }}
-                      ></div>
-
                       <motion.div
                         className='absolute inset-0 bg-black/30 rounded-xl'
                         initial={{ opacity: 0.7 }}
@@ -383,11 +389,6 @@ const ScrollExpandMedia = ({
                           />
                         )}
                       </video>
-                      <div
-                        className='absolute inset-0 z-10'
-                        style={{ pointerEvents: 'none' }}
-                      ></div>
-
                       <motion.div
                         className='absolute inset-0 bg-black/30 rounded-xl'
                         initial={{ opacity: 0.7 }}

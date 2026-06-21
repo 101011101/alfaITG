@@ -34,36 +34,53 @@ export default function App() {
   const [active, setActive] = useState(0);
   const [atTop, setAtTop] = useState(true);
   const lastY = useRef(0);
+  const hoveringHeader = useRef(false); // pause the idle-fade while the nav is in use
+  const revealHeader = useRef<() => void>(() => {});
+  const pauseHeaderFade = useRef<() => void>(() => {});
 
   // Header behaviour (tuned for the scroll-jacked frame site):
-  //  - on the hero (very top) it's always visible and transparent over the video
-  //  - past the hero it hides while you scroll DOWN, reveals when you scroll UP —
-  //    with a small delta so a frame-snap's overshoot can't flip it
-  //  - moving the cursor to the top edge always pulls it back into view
-  // No idle auto-hide: a header that vanished mid-frame while reading was the
-  // janky part, and every frame snap kept re-triggering it.
+  //  - it hides immediately while you scroll DOWN (get out of the way while reading)
+  //  - any reveal (scroll UP, settling at the top, or reaching the top edge) shows it
+  //    and arms a 3s idle timer that fades it back out once you stop interacting
+  //  - a small delta keeps a frame-snap's overshoot from flipping it
+  //  - hovering the header itself pauses the fade so it can't vanish mid-click
   useEffect(() => {
     const TOP_ZONE = 90; // px from the top that counts as "reaching for the header"
     const DELTA = 8; // ignore sub-threshold jitter / snap overshoot
+    const IDLE = 3000; // ms of inactivity before the header fades away
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const pauseFade = () => { if (timer) clearTimeout(timer); };
+    const armFade = () => {
+      pauseFade();
+      timer = setTimeout(() => {
+        if (!hoveringHeader.current) setHideBar(true);
+      }, IDLE);
+    };
+    const reveal = () => { setHideBar(false); armFade(); }; // show now, fade after 3s idle
+    revealHeader.current = reveal;
+    pauseHeaderFade.current = pauseFade;
 
     const onScroll = () => {
       const y = window.scrollY;
       setAtTop(y <= 80);
       setShowCorner(y > window.innerHeight * 0.8);
-      if (y <= 80) setHideBar(false); // hero: always shown
-      else if (y < lastY.current - DELTA) setHideBar(false); // scrolling up reveals
-      else if (y > lastY.current + DELTA) setHideBar(true); // scrolling down hides
+      if (y > lastY.current + DELTA) { pauseFade(); setHideBar(true); } // scrolling down hides now
+      else if (y < lastY.current - DELTA) reveal(); // scrolling up reveals, then idle-fades
+      else if (y <= 80) reveal(); // settled at the hero: reveal, then idle-fades
       lastY.current = y;
     };
 
     const onMove = (e: MouseEvent) => {
-      if (e.clientY <= TOP_ZONE) setHideBar(false); // reach for the top edge -> reveal
+      if (e.clientY <= TOP_ZONE) reveal(); // reach for the top edge -> reveal, then idle-fades
     };
 
     onScroll();
+    armFade(); // start the countdown on load so it fades if left untouched
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("mousemove", onMove, { passive: true });
     return () => {
+      pauseFade();
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("mousemove", onMove);
     };
@@ -117,8 +134,10 @@ export default function App() {
 
       {/* Top header */}
       <header
-        className={`fixed inset-x-0 top-0 z-50 flex h-14 items-center justify-between border-b px-6 transition-[transform,background-color,border-color] duration-300 ${
-          hideBar ? "-translate-y-full" : "translate-y-0"
+        onMouseEnter={() => { hoveringHeader.current = true; pauseHeaderFade.current(); }}
+        onMouseLeave={() => { hoveringHeader.current = false; revealHeader.current(); }}
+        className={`fixed inset-x-0 top-0 z-50 flex h-14 items-center justify-between border-b px-6 transition-[opacity,background-color,border-color] duration-500 ${
+          hideBar ? "pointer-events-none opacity-0" : "opacity-100"
         } ${
           atTop
             ? "border-transparent bg-transparent"

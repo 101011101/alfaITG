@@ -12,8 +12,9 @@
 type Tunables = {
   gain: number; // wheel delta → velocity
   friction: number; // velocity decay per frame (0–1)
-  gestureGap: number; // ms of no wheel that counts as a NEW gesture (releases a hard stop)
-  inertiaDropoff: number; // delta below this fraction of the gesture peak = OS inertia → ignored
+  restGap: number; // ms of no wheel = momentum surely over → a real pause, releases the beat
+  reaccel: number; // a push must beat the stop speed by this × to leave a frame (1.05 = 5% faster)
+  beatHold: number; // ms the frame stays dead-stopped before ANY re-accel can release it (0.3s)
   ram: boolean; // false ⇒ EVERY notch is a hard stop (no ram-through at all)
   threshold: number; // (only if ram) notch bar: below it you STOP, at/above you RAM
   penalty: number; // (only if ram) velocity ×= this when you ram a notch
@@ -24,8 +25,9 @@ type Tunables = {
 const T: Tunables = {
   gain: 0.5,
   friction: 0.94,
-  gestureGap: 120,
-  inertiaDropoff: 0.7,
+  restGap: 300,
+  reaccel: 1.05,
+  beatHold: 300,
   ram: false,
   threshold: 90,
   penalty: 0.5,
@@ -43,17 +45,23 @@ let raf = 0;
 let lastScrolled = -1;
 let onTopUp: (() => void) | null = null;
 
-// Hard-stop lock: after stopping on a notch, swallow the rest of the scroll stream
-// (the inertia tail) so it can't immediately push you off. Released by a NEW gesture
-// (a pause longer than gestureGap) or a reversal.
+// Hard-stop lock: after landing on a notch we DELETE the incoming scroll stream
+// until inertia INCREASES again. OS momentum (a flick's tail) can only ever shrink,
+// so it gets swallowed forever and you rest on the frame; a real new push has to
+// RISE to exist, so it's recognised instantly (no pause needed) and moves you one
+// slide on. Also released by a direction reversal or a full pause.
 let lastWheelT = 0;
 let locked = false;
 let lockDir = 0; // direction of travel that hit the notch
 
-// Inertia rejection: a wheel "gesture" rises to a peak then decays. The decaying
-// tail is OS momentum, not the user — once we've fallen off the peak we drop it.
-let peakAbs = 0;
-let decaying = false;
+// On a dead stop we capture the inertia level we stopped at (stopRef, seeded from the
+// first wheel delta after the stop) and when (stopTime). To leave the frame, a delta
+// must beat stopRef by `reaccel` (5%) AND arrive after `beatHold` (0.3s). The OS
+// momentum tail only ever shrinks below stopRef, so it can never clear that bar — no
+// glitchy creep; only a deliberate harder push (or a real pause / reversal) moves on.
+let stopRef = 0;
+let stopSeeded = false;
+let stopTime = 0;
 
 // Touch drag: we synthesize wheel-like deltas from finger movement. Track the last
 // Y so each move emits the incremental drag (dragging the finger UP scrolls the page
@@ -95,27 +103,29 @@ function applyDelta(deltaY: number) {
   const abs = Math.abs(deltaY);
   const d = deltaY > 0 ? 1 : deltaY < 0 ? -1 : 0;
 
-  // New gesture after a pause → reset the inertia tracking.
-  if (gap >= T.gestureGap) {
-    decaying = false;
-    peakAbs = 0;
-  }
-  // Rising/at-peak = the user actively pushing. Once delta falls well below the
-  // peak, we've entered the OS momentum tail — ignore everything from there.
-  if (abs > peakAbs) {
-    peakAbs = abs;
-    decaying = false;
-  } else if (abs < peakAbs * T.inertiaDropoff) {
-    decaying = true;
-  }
-  if (decaying) return; // drop OS inertia — the engine's friction is the only glide
-
-  // Hard-stop lock: hold a notch against a SUSTAINED push (released by a pause/reversal).
+  // Hard-stop lock = the beat. After a dead stop we DELETE the incoming stream until
+  // it genuinely re-accelerates past the speed we stopped at. Rules, in order:
   if (locked) {
-    if (gap >= T.gestureGap || (d !== 0 && d !== lockDir)) {
+    if (gap >= T.restGap) {
+      // A real pause: momentum is long over, so this delta is a fresh human push.
+      locked = false;
+    } else if (d !== 0 && d !== lockDir) {
+      // Direction reversal (e.g. scrolling back up off the frame).
+      locked = false;
+    } else if (!stopSeeded) {
+      // First delta after the stop = the inertia level we stopped at. Seed the bar
+      // from it and swallow it — this is the momentary rest, never an advance.
+      stopRef = abs;
+      stopSeeded = true;
+      return;
+    } else if (t - stopTime >= T.beatHold && abs > stopRef * T.reaccel) {
+      // 5% faster than the stop speed, and only after the 0.3s hold → move on.
       locked = false;
     } else {
-      return;
+      // stopRef stays PINNED to the speed we stopped at — the decaying tail is
+      // always below it, so it can never clear the +50% bar. (Letting it ride down
+      // was the leak: the bar collapsed toward zero and small inertia slipped past.)
+      return; // delete the inertia tail
     }
   }
 
@@ -240,7 +250,9 @@ function tick() {
       newPos = notch; // the STOP NOTCH — dead stop at 100%
       lockDir = Math.sign(vel) || lockDir;
       vel = 0;
-      locked = true; // hold here until a new gesture pushes off
+      locked = true; // hold here until a deliberate re-acceleration pushes off
+      stopSeeded = false; // next wheel delta seeds the inertia bar (stopRef)
+      stopTime = performance.now(); // start the 0.1s momentary-rest hold
     }
   }
   pos = newPos;
@@ -356,12 +368,12 @@ export const frameScroll = {
     pos = window.scrollY;
     vel = 0;
     mode = "free";
-    decaying = false;
-    peakAbs = 0;
     lastScrolled = -1;
     if (lockTail) {
       locked = true;
       lockDir = 1; // the zoom-completing gesture travels downward
+      stopSeeded = false; // the zoom-completing tail seeds the bar, just like a notch
+      stopTime = performance.now(); // start the 0.1s hold for the hero's beat
       lastWheelT = performance.now(); // treat the continuing tail as the same gesture
     } else {
       locked = false;

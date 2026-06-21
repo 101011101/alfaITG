@@ -141,7 +141,6 @@ function createPixel(
 type PixelCanvasProps = {
   colors: string[];
   gap?: number;
-  speed?: number;
 };
 
 export function PixelCanvas({ colors, gap = 5 }: PixelCanvasProps) {

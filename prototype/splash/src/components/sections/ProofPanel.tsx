@@ -13,8 +13,8 @@ export function ProofPanel() {
               audited figure once real metrics land. */}
           <GooeyText
             texts={["ITAR Registered", "Since 1990", "Fortune 500 partners", "310% ROI"]}
-            morphTime={1.2}
-            cooldownTime={2.5}
+            morphTime={0.6}
+            cooldownTime={1.25}
             className="h-full w-full font-bold"
             textClassName="text-white"
           />

@@ -21,6 +21,40 @@ function ProductCard({ title, blurb, image, icon: Icon }: Product & { icon: Elem
   );
 }
 
+// Edge treatment is a TRANSPARENCY MASK, not an opaque overlay. The opaque scrim
+// painted a solid --background strip at the panel edges, which at the seams with the
+// neighbouring rail panels (Robot / Proof) read as a block. A mask instead dissolves
+// the cards themselves to NOTHING (revealing the shared background behind, like every
+// other panel), and lets us hold a clean ~5% gutter on the horizontal sides so no card
+// fragment ever reaches the seam.
+//
+// Applied to the panel-aligned perspective wrapper — NOT the rotated plane — so the
+// gutters stay vertical instead of tilting with the cards. Alpha ramps are eased
+// (several stops) so the dissolve has no hard line. mask-mode is alpha for gradients.
+//
+// Horizontal: ~5% fully-clear gutter each side, then ease in to full by ~15%.
+const H_MASK =
+  "linear-gradient(to right," +
+  " rgba(0,0,0,0) 0%, rgba(0,0,0,0) 5%," +
+  " rgba(0,0,0,0.2) 8%, rgba(0,0,0,0.55) 11%, rgba(0,0,0,0.85) 13%, rgba(0,0,0,1) 15%," +
+  " rgba(0,0,0,1) 85%," +
+  " rgba(0,0,0,0.85) 87%, rgba(0,0,0,0.55) 89%, rgba(0,0,0,0.2) 92%," +
+  " rgba(0,0,0,0) 95%, rgba(0,0,0,0) 100%)";
+// Vertical: cards scroll in/out here, so use a wider eased fade (no hard gutter needed).
+const V_MASK =
+  "linear-gradient(to bottom," +
+  " rgba(0,0,0,0) 0%, rgba(0,0,0,0.15) 5%, rgba(0,0,0,0.5) 11%, rgba(0,0,0,0.85) 16%, rgba(0,0,0,1) 20%," +
+  " rgba(0,0,0,1) 80%," +
+  " rgba(0,0,0,0.85) 84%, rgba(0,0,0,0.5) 89%, rgba(0,0,0,0.15) 95%, rgba(0,0,0,0) 100%)";
+
+// Intersect the two so a pixel survives only if BOTH masks keep it (clean corners too).
+const MASK_STYLE = {
+  WebkitMaskImage: `${H_MASK}, ${V_MASK}`,
+  maskImage: `${H_MASK}, ${V_MASK}`,
+  WebkitMaskComposite: "source-in",
+  maskComposite: "intersect",
+} as const;
+
 export function ProductsSection() {
   const columns = [false, true, false, true, false, true]; // alternate scroll direction
   return (
@@ -29,8 +63,13 @@ export function ProductsSection() {
         Our Key Offerings
       </h2>
 
-      {/* Full-bleed tilted marquee plane. */}
-      <div className="absolute inset-0 flex flex-row items-center justify-center [perspective:1200px]">
+      {/* Full-bleed tilted marquee plane. The mask (panel-aligned) fades the cards to
+          nothing toward every edge and holds clean ~5% gutters on the horizontal sides
+          so no card reaches the seams with the Robot / Proof panels. */}
+      <div
+        className="absolute inset-0 flex flex-row items-center justify-center [perspective:1200px]"
+        style={MASK_STYLE}
+      >
         <div
           className="flex flex-row items-center gap-6"
           style={{
@@ -46,11 +85,6 @@ export function ProductsSection() {
             </Marquee>
           ))}
         </div>
-        {/* Edge fades. */}
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-1/5 bg-gradient-to-b from-background" />
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/5 bg-gradient-to-t from-background" />
-        <div className="pointer-events-none absolute inset-y-0 left-0 w-1/6 bg-gradient-to-r from-background" />
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-1/6 bg-gradient-to-l from-background" />
       </div>
     </section>
   );

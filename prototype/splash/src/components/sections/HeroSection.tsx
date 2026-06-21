@@ -52,7 +52,6 @@ export function HeroSection() {
           </div>
         }
       />
-      {/* after-scroll thesis block removed per spec — thesis now lives on the media. */}
     </section>
   );
 }

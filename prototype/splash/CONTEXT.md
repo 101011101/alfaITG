@@ -22,7 +22,7 @@ site is ONE pinned horizontal scroller.
 ```
 FRAME 1 — HERO        vertical, pinned. scroll-expand video.          magenta
    ↓ vertical scroll
-═══ HORIZONTAL RAIL (pinned, 350vh) ═══════════════════════════
+═══ HORIZONTAL RAIL (pinned, 500vh) ═══════════════════════════
 FRAME 2 ROBOT  →  FRAME 3 PRODUCTS  →  FRAME 4 PROOF              cyan / green / yellow
                                   FRAME 5 CONTACT (fades OVER proof) orange
 ═══════════════════════════════════════════════════════════════
@@ -41,13 +41,13 @@ FRAME 2 ROBOT  →  FRAME 3 PRODUCTS  →  FRAME 4 PROOF              cyan / gre
 
 ### Beats / frames (the `BEATS` array + scroll anchors)
 
-| # | Canonical term | `id` | `data-label` | NeonTag | Color | Component |
-|---|---|---|---|---|---|---|
-| 1 | **Hero** | `hero` | Hero | HERO | magenta `#ff00e6` | `HeroSection` — scroll-expand video, thesis on media |
-| 2 | **Transition** ⚠️ (aka Robot / Schematic) | `transition` | Schematic | ROBOT | cyan `#00f0ff` | `TransitionSection` — cursor-tracking Spline robot + radial product orbit |
-| 3 | **Products** | `products` | Products | PRODUCTS | green `#39ff14` | `ProductsSection` — tilted 3D card marquee |
-| 4 | **Proof** | `proof` | Proof | PROOF | yellow `#faff00` | `ProofPanel` — gooey ROI text (left) + news carousel (right) |
-| 5 | **Contact** | `contact` | Contact | CONTACT | orange `#ff5e00` | inline in `HorizontalRail` — CTA over ink-reveal |
+| # | Canonical term | `id` | `data-label` | Component |
+|---|---|---|---|---|
+| 1 | **Hero** | `hero` | Hero | `HeroSection` — scroll-expand video, thesis on media |
+| 2 | **Transition** ⚠️ (aka Robot / Schematic) | `transition` | Schematic | `TransitionSection` — cursor-tracking Spline robot + radial product orbit |
+| 3 | **Products** | `products` | Products | `ProductsSection` — tilted 3D card marquee |
+| 4 | **Proof** | `proof` | Proof | `ProofPanel` — gooey ROI text (left) + news carousel (right) |
+| 5 | **Contact** | `contact` | Contact | inline in `HorizontalRail` — CTA over ink-reveal |
 
 ### Persistent chrome (always on screen, in `App.tsx`)
 
@@ -63,12 +63,11 @@ FRAME 2 ROBOT  →  FRAME 3 PRODUCTS  →  FRAME 4 PROOF              cyan / gre
 
 | Term | Meaning |
 |---|---|
-| **Horizontal Rail** | 350vh pinned section; scrolling down slides panels sideways. |
+| **Horizontal Rail** | 500vh pinned section; scrolling down slides panels sideways. |
 | **Panel** | A full-screen slide on the rail's horizontal `track` (3: Robot, Products, Proof). |
 | **Sentinel** | Invisible 1px divs marking vertical scroll positions; serve as nav anchors + snap targets. |
 | **Escape velocity / speed bump** | Snap rule in `App.tsx`: must flick with intent (peak velocity ≥ `ESCAPE`) to leave a frame, else "trapped" back. |
 | **Contact cross-fade** | Fast fade bringing Contact OVER Proof in last half-screen of rail scroll. |
-| **NeonTag / lens** | TEMPORARY diagnostic ring+badge naming each section (`_diag.tsx`). Delete when signed off. |
 
 ### Products (shared by Frame 2 orbit + Frame 3 marquee, `lib/products.ts`)
 
@@ -93,9 +92,9 @@ prototype/splash/src/
     utils.ts                  # cn()
     products.ts               # ALFA_* product data (shared by Frame 2 orbit / Frame 3 marquee)
   components/
-    _diag.tsx                 # NeonTag + NEON color map (TEMPORARY diagnostic labels)
     SplashBackground.tsx      # pixel-field background, parallax, mounted once at root
     LogoBanner.tsx            # bottom logo marquee
+    ErrorBoundary.tsx         # crash fallback wrapping <App/>
     HorizontalRail.tsx        # the pinned horizontal scroller (Frames 2-5 live here)
     sections/
       HeroSection.tsx         # Frame 1
@@ -112,15 +111,12 @@ prototype/splash/src/
 
 ## 5. Known inconsistencies / open items
 
-- **Frame 2 has 4 names:** file `TransitionSection`, NeonTag `ROBOT`, sentinel `data-label="Schematic"`,
-  nav/`BEATS` `Transition`, README `Beat 2`. NOT yet unified. (Suggestion: "Transition" = the frame's
+- **Frame 2 has 3 names:** file `TransitionSection`, sentinel `data-label="Schematic"`,
+  nav/`BEATS` `Transition`. NOT yet unified. (Suggestion: "Transition" = the frame's
   identity; "Robot"/"Schematic" describe its contents.)
-- **README is stale:** documents files that don't exist (`ProofSection`, `GridSection`, `FishTankSection`,
-  `ContactSection`, `NewsletterSection`). The build collapsed these.
-- **"Beat" vocabulary is legacy** from `../splash-wireframe.html`; doesn't fully match as-built.
-- **NeonTag system is temporary** — delete `_diag.tsx` + all `<NeonTag>` usages once sections sign off.
+- **"Beat" vocabulary is legacy** from `../splash-wireframe.html`; doesn't fully match as-built (frames).
 - **Placeholders to replace:** Spline robot scene URL, `products.ts` real data, Proof points (real ROI
-  numbers), Contact reveal image, real client logos in Logo Banner.
+  numbers), Contact reveal image, confirm trademark usage rights on Logo Banner partner logos.
 
 ---
 

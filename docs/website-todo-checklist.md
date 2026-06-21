@@ -6,14 +6,15 @@ A running checklist of outstanding tasks for the website. Check items off as the
 - [ ] Update the content across the site (copy, sections, messaging)
 
 ## Header / Navigation
-- [ ] Fix the header for the website
+- [x] Fix the header for the website
 
 ## Scrolling & Navigation UX
 - [ ] Review and apply best practices for scrolling
-- [ ] Add / fix arrow-key navigation support
+- [x] Add / fix arrow-key navigation support
 
 ## Linking & Buttons
-- [ ] Ensure links and buttons point to the correct areas / destinations
+- [x] Ensure links and buttons point to the correct areas / destinations
+  - Remaining (intentional placeholders, pending real data): footer social URLs, news-card article links
 
 ## Media & Assets
 - [ ] Update the images
@@ -27,3 +28,5 @@ A running checklist of outstanding tasks for the website. Check items off as the
 ## Cleanup
 - [ ] Do a clean run and check for artifacts that should not be present
 - [ ] Delete any stray / leftover artifacts found
+  - Done so far: removed NeonTag diagnostics + `_diag.tsx` refs, unused `PixelHero`/`BRAND_LOGOS`, `liquid-glass-button.tsx`
+  - Still outstanding: orphaned media (unused `f22-refuel.webm`, schematic PNGs, stray `placeholder-kit/.../trimmedf22 refill short video.mov`)

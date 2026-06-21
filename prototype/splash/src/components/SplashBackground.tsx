@@ -5,10 +5,10 @@ const PARALLAX = 0.1; // background scrolls at 10% of real scroll speed
 
 /**
  * The DEFAULT site background (Silent-Precision pixel kit), mounted once at the
- * app root behind everything (-z-10). PARALLAX: it drifts up at 30% of the real
+ * app root behind everything (-z-10). It drifts up at PARALLAX (10%) of the real
  * scroll speed for a multi-dimensional, "deeper than the page" feel. The canvas
- * is sized to viewport + 30% of the scrollable range so the drift never reveals
- * an edge (covers exactly at scroll 0 and at max scroll).
+ * is sized to viewport + PARALLAX of the scrollable range so the drift never
+ * reveals an edge (covers exactly at scroll 0 and at max scroll).
  */
 export function SplashBackground() {
   const [colors, setColors] = useState<string[]>([]);
@@ -64,7 +64,7 @@ export function SplashBackground() {
         className="absolute inset-x-0 top-0 will-change-transform"
         style={{ height: `calc(100vh + ${extra}px)` }}
       >
-        {colors.length > 0 && <PixelCanvas colors={colors} gap={6} speed={30} />}
+        {colors.length > 0 && <PixelCanvas colors={colors} gap={6} />}
       </div>
       {/* vignette stays pinned to the viewport */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,var(--background)_100%)] opacity-80" />

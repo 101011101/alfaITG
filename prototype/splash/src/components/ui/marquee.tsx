@@ -1,6 +1,6 @@
 // Source: "3d-testimonails.tsx" (filename de-typo'd to marquee.tsx).
-// Used by the Products grid (Beat 3) and the Summary Grid (Beat 5).
-import React, { ComponentPropsWithoutRef, useRef } from 'react';
+// Used by the Products grid (Beat 3).
+import React, { ComponentPropsWithoutRef } from 'react';
 import { cn } from '@/lib/utils';
 
 interface MarqueeProps extends ComponentPropsWithoutRef<'div'> {
@@ -10,7 +10,6 @@ interface MarqueeProps extends ComponentPropsWithoutRef<'div'> {
   children: React.ReactNode;
   vertical?: boolean;
   repeat?: number;
-  autoFill?: boolean;
   ariaLabel?: string;
   ariaLive?: 'off' | 'polite' | 'assertive';
   ariaRole?: string;
@@ -28,12 +27,9 @@ export function Marquee({
   ariaRole = 'marquee',
   ...props
 }: MarqueeProps) {
-  const marqueeRef = useRef<HTMLDivElement>(null);
-
   return (
     <div
       {...props}
-      ref={marqueeRef}
       data-slot="marquee"
       className={cn(
         'group flex overflow-hidden p-2 [--duration:40s] [--gap:1rem] [gap:var(--gap)]',
