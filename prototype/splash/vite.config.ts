@@ -26,8 +26,6 @@ export default defineConfig({
             id.includes("react/jsx-runtime")
           )
             return "react-vendor";
-          if (id.includes("framer-motion") || id.includes("/motion-dom/"))
-            return "framer-motion";
         },
       },
     },

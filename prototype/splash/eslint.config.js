@@ -19,16 +19,19 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
-      // The classic, high-value hooks rules stay as errors (above). The newer
-      // React-Compiler-era rules are advisory here: this codebase syncs external
-      // systems (native scroll, rAF decorations, canvas) by driving state
-      // imperatively inside effects (SSR/IO-fallback initial state, reduced-motion
-      // sync, ref access in animation setup), which these rules flag as a matter of
-      // style. Keep them as warnings so they surface without failing CI.
+      // The classic, high-value hooks rules stay as errors (above), and so do
+      // react-hooks/purity and react-hooks/refs now that their only violations
+      // are fixed. Two newer React-Compiler-era rules remain advisory:
+      // - set-state-in-effect: this codebase legitimately syncs external systems
+      //   (native scroll, rAF decorations, canvas, reduced-motion signal) by
+      //   driving state imperatively inside effects, which this rule flags as a
+      //   matter of style.
+      // - immutability: still fires on a hoisted rAF `loop` callback referenced
+      //   before declaration; left as a warning so it surfaces without failing CI.
       "react-hooks/set-state-in-effect": "warn",
-      "react-hooks/purity": "warn",
+      "react-hooks/purity": "error",
       "react-hooks/immutability": "warn",
-      "react-hooks/refs": "warn",
+      "react-hooks/refs": "error",
       "react-refresh/only-export-components": [
         "warn",
         { allowConstantExport: true },
