@@ -1,12 +1,10 @@
-// BEAT 1 — Hero [PIN]. Scroll-to-expand VIDEO that zooms out to full-bleed,
-// with the thesis overlaid ON the media (visible before scroll, stays at the end).
-// NOTE: ScrollExpandMedia scroll-jacks the window — pinned at top until expanded.
-// The on-image CTAs navigate only after the media is expanded (scroll unlocks).
+// BEAT 1 — Hero. Scroll-to-expand VIDEO that zooms out to full-bleed, with the
+// thesis overlaid ON the media (visible before scroll, stays at the end). The hero
+// uses NATIVE scroll (see scroll-expansion-hero.tsx) — it is not scroll-jacked or
+// pinned; the expand is driven from the window scroll position as you scroll past it.
 import { memo } from "react";
 import ScrollExpandMedia from "@/components/ui/scroll-expansion-hero";
-
-const goto = (id: string) =>
-  document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+import { scrollToId as goto } from "@/lib/scrollToId";
 
 export const HeroSection = memo(function HeroSection() {
   return (

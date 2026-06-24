@@ -132,6 +132,8 @@ const ScrollExpandMedia = ({
             alt=""
             fetchPriority="high"
             decoding="async"
+            width={1600}
+            height={1000}
             className="h-full w-full object-cover"
           />
           <div className="absolute inset-0 bg-black/10" />
@@ -213,6 +215,8 @@ const ScrollExpandMedia = ({
                 alt={title || 'Media content'}
                 fetchPriority="high"
                 decoding="async"
+                width={1600}
+                height={1000}
                 className="h-full w-full rounded-xl object-cover"
               />
               <div

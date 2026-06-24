@@ -30,6 +30,27 @@ let raf = 0;
 let lastNow = 0;
 let io: IntersectionObserver | null = null;
 
+// Scroll-active flag. Set true on every window `scroll` event and cleared ~120ms
+// after the last one. Subscribers that pass { skipWhileScrolling: true } are not
+// invoked while this is true, so their canvas isn't redrawn mid-scroll (the scroll
+// itself is already moving things; redrawing decorations on top wastes the frame).
+let scrolling = false;
+let scrollTimer: ReturnType<typeof setTimeout> | undefined;
+if (typeof window !== "undefined") {
+  window.addEventListener(
+    "scroll",
+    () => {
+      scrolling = true;
+      if (scrollTimer) clearTimeout(scrollTimer);
+      scrollTimer = setTimeout(() => {
+        scrolling = false;
+        requestTick(); // wake the loop so skipped subscribers redraw once settled
+      }, 120);
+    },
+    { passive: true },
+  );
+}
+
 function ensureIO() {
   if (io || typeof IntersectionObserver === "undefined") return;
   io = new IntersectionObserver(
@@ -69,11 +90,13 @@ function tick(now: number) {
   const hidden = typeof document !== "undefined" && document.hidden;
   if (!hidden && decos.length) {
     syncObservers();
-    const ctx: DecorationContext = { now, dt, scrollActive: false };
+    const ctx: DecorationContext = { now, dt, scrollActive: scrolling };
     for (const s of decos) {
       const alive = (!s.enabled || s.enabled()) && (!s.el || s._visible);
       if (!alive) continue;
-      anyAlive = true;
+      anyAlive = true; // keep the clock alive even on a skipped frame
+      // Don't redraw a scroll-skipping decoration while the page is scrolling.
+      if (s.skipWhileScrolling && ctx.scrollActive) continue;
       if (s.fps) {
         if (s._last && now - s._last < 1000 / s.fps) continue;
         s._last = now;

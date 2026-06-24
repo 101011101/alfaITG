@@ -152,7 +152,7 @@ export function PixelCanvas({ colors, gap = 5, paused = false }: PixelCanvasProp
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const pixelsRef = useRef<Pixel[]>([]);
-  const startRef = useRef(performance.now());
+  const startRef = useRef(0);
   const reducedMotionRef = useRef(false);
   const pausedRef = useRef(false); // gate: frozen while the hero covers the canvas
 
@@ -196,7 +196,7 @@ export function PixelCanvas({ colors, gap = 5, paused = false }: PixelCanvasProp
     pixelsRef.current = pixels;
   }, [colors, gap]);
 
-  // One frame of the shimmer/Chladni draw. The master clock owns the 20fps cap,
+  // One frame of the shimmer/Chladni draw. The master clock owns the 15fps cap,
   // pause-while-covered, scroll-skip and tab-hidden gating — this is purely the draw.
   const renderFrame = useCallback((now: number) => {
     const canvas = canvasRef.current;
@@ -252,7 +252,19 @@ export function PixelCanvas({ colors, gap = 5, paused = false }: PixelCanvasProp
     startRef.current = performance.now();
     init();
 
-    const resizeObserver = new ResizeObserver(() => init());
+    // Debounce resize-driven re-inits: init() rebuilds the entire per-pixel array
+    // (O(w*h)), and a drag-resize can fire the ResizeObserver many times per second.
+    // Coalesce the burst into a single trailing rebuild ~150ms after it settles.
+    let resizeTimer: ReturnType<typeof setTimeout> | undefined;
+    const debouncedInit = () => {
+      if (resizeTimer !== undefined) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        resizeTimer = undefined;
+        init();
+      }, 150);
+    };
+
+    const resizeObserver = new ResizeObserver(() => debouncedInit());
     if (wrapRef.current) resizeObserver.observe(wrapRef.current);
 
     // Keep the reduced-motion flag fresh on a live flip (the old read-once went
@@ -262,36 +274,42 @@ export function PixelCanvas({ colors, gap = 5, paused = false }: PixelCanvasProp
       init();
     });
 
-    // Join the master clock: 20fps, frozen while the hero covers it, and — the key
+    // Join the master clock: 15fps, frozen while the hero covers it, and — the key
     // win — NOT redrawn on frames the page is scrolling (skipWhileScrolling), so
     // scroll frames never wait on a full-canvas redraw.
     const unsub = frameClock.subscribeDecoration((ctx) => renderFrame(ctx.now), {
-      fps: 20,
+      fps: 15,
       enabled: () => !pausedRef.current,
       skipWhileScrolling: true,
     });
 
     // Live tuning handle in the console. Patching mode integers / colours needs a
     // re-init (remap the per-pixel shapes + LUT), so tune() always re-inits.
-    (window as unknown as { __pixelWave: unknown }).__pixelWave = {
-      tune: (patch: Partial<WaveConfig>) => {
-        Object.assign(WAVE, patch);
-        init();
-      },
-      get config() {
-        return { ...WAVE };
-      },
-      pause: () => { pausedRef.current = true; },
-      resume: () => { pausedRef.current = false; frameClock.requestTick(); },
-    };
+    // Dev-only: never ship this tuning handle to production.
+    if (import.meta.env.DEV) {
+      (window as unknown as { __pixelWave: unknown }).__pixelWave = {
+        tune: (patch: Partial<WaveConfig>) => {
+          Object.assign(WAVE, patch);
+          init();
+        },
+        get config() {
+          return { ...WAVE };
+        },
+        pause: () => { pausedRef.current = true; },
+        resume: () => { pausedRef.current = false; frameClock.requestTick(); },
+      };
+    }
 
     return () => {
       resizeObserver.disconnect();
+      if (resizeTimer !== undefined) clearTimeout(resizeTimer);
       unsub();
       unsubRM();
       // Drop the console tuning handle so it can't operate on a dead component (and
-      // leak this effect's closures) after unmount.
-      delete (window as unknown as { __pixelWave?: unknown }).__pixelWave;
+      // leak this effect's closures) after unmount. Dev-only, mirroring the install.
+      if (import.meta.env.DEV) {
+        delete (window as unknown as { __pixelWave?: unknown }).__pixelWave;
+      }
     };
   }, [init, renderFrame]);
 

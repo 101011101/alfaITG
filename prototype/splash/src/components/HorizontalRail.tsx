@@ -3,12 +3,12 @@
 // instead slides the track sideways: Robot exits left → Products enters right →
 // Proof enters. After Proof, a fast cross-fade brings Contact in OVER it and
 // replaces it (buttons/text + ink mouse-trace only enable once fully revealed).
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { TransitionSection } from "./sections/TransitionSection";
 import { ProductsSection } from "./sections/ProductsSection";
 import { ProofPanel } from "./sections/ProofPanel";
 import InkReveal from "@/components/ui/ink-reveal";
-import { frameScroll } from "@/lib/frameScroll";
+import { scrollToId } from "@/lib/scrollToId";
 
 const clamp = (v: number) => Math.min(Math.max(v, 0), 1);
 const PANELS = 3; // Robot, Products, Proof
@@ -25,7 +25,7 @@ const BEAT = 1;
 // Proof) + Contact + Footer, plus one viewport for the sticky stage itself.
 const RAIL_VH = ((PANELS + 1) * BEAT + 1) * 100; // 900vh at BEAT=2
 
-export function HorizontalRail() {
+function HorizontalRailImpl() {
   const railRef = useRef<HTMLElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const contactRef = useRef<HTMLDivElement>(null);
@@ -62,10 +62,8 @@ export function HorizontalRail() {
   };
 
   // Jump down to the footer's structured contact form (the alternative to the
-  // overlay's instant mailto CTA). Uses the frame engine so it snaps cleanly.
-  const goToFooter = () => {
-    document.getElementById("footer")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
+  // overlay's instant mailto CTA).
+  const goToFooter = () => scrollToId("footer");
 
   useEffect(() => {
     // Geometry is cached and recomputed ONLY on resize, so the per-frame update
@@ -111,14 +109,8 @@ export function HorizontalRail() {
         ctaRef.current.style.transform = `translateY(-${f * 30}vh)`;
     };
 
-    // SYNCHRONIZED path: the frame engine calls this inside its own rAF, the same
-    // frame it moves the page — so the track is locked to the scroll, not a frame
-    // behind it (which is what made it look jagged).
-    const unsub = frameScroll.subscribe(update);
-
     // Native scrolling drives the rail. rAF-coalesced so native scroll bursts
-    // collapse to one update. (subscribe above is kept for the scroll-linked-
-    // visuals contract; the page scrolls natively.)
+    // collapse to one update — the track stays locked to the scroll position.
     let rafId = 0;
     const onNativeScroll = () => {
       if (rafId) return;
@@ -137,7 +129,6 @@ export function HorizontalRail() {
     window.addEventListener("scroll", onNativeScroll, { passive: true });
     window.addEventListener("resize", onResize);
     return () => {
-      unsub();
       if (rafId) cancelAnimationFrame(rafId);
       window.removeEventListener("scroll", onNativeScroll);
       window.removeEventListener("resize", onResize);
@@ -388,3 +379,6 @@ export function HorizontalRail() {
     </section>
   );
 }
+
+// Prop-less — memoized so App's per-scroll state flips don't re-reconcile the rail.
+export const HorizontalRail = memo(HorizontalRailImpl);

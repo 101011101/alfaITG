@@ -1,7 +1,7 @@
 "use client";
 // NOTE vs. source: `NodeJS.Timeout` -> `ReturnType<typeof setInterval>` so it compiles
 // in a browser/Vite TS setup without @types/node. Behaviour identical.
-import { useState, useEffect, useLayoutEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { frameClock } from "@/lib/frameClock";
@@ -247,11 +247,15 @@ export default function RadialOrbitalTimeline({
     setRotationAngle(270 - targetAngle);
   };
 
-  const isRelatedToActive = (itemId: number): boolean => {
-    if (activeNodeId === null) return false;
-    const relatedItems = getRelatedItems(activeNodeId);
-    return relatedItems.includes(itemId);
-  };
+  // Precompute the active node's related-ids ONCE per active-node change. The
+  // render loop below calls this per node; without memoization each call re-scanned
+  // timelineData (.find) → O(n²) per render on every hover. A memoized Set makes the
+  // per-node lookup O(1).
+  const relatedToActive = useMemo(() => {
+    if (activeNodeId === null) return new Set<number>();
+    return new Set(getRelatedItems(activeNodeId));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeNodeId, timelineData]);
 
   return (
     <div
@@ -274,7 +278,7 @@ export default function RadialOrbitalTimeline({
           {timelineData.map((item, index) => {
             const position = calculateNodePosition(index, timelineData.length);
             const isExpanded = expandedItems[item.id];
-            const isRelated = isRelatedToActive(item.id);
+            const isRelated = relatedToActive.has(item.id);
             const isPulsing = pulseEffect[item.id];
             const Icon = item.icon;
 
@@ -385,6 +389,8 @@ export default function RadialOrbitalTimeline({
                 alt=""
                 loading="lazy"
                 decoding="async"
+                width={256}
+                height={112}
                 className="h-28 w-full object-cover"
               />
               <CardHeader className="pb-2">

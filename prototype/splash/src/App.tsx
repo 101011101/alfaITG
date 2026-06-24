@@ -4,6 +4,7 @@ import { LogoBanner } from "./components/LogoBanner";
 import { HeroSection } from "./components/sections/HeroSection";
 import { HorizontalRail } from "./components/HorizontalRail";
 import { frameScroll } from "./lib/frameScroll";
+import { scrollToId } from "./lib/scrollToId";
 import { heroZoom } from "./lib/heroZoom";
 
 // Single source of truth for every beat of the page. Each view below is derived
@@ -23,9 +24,7 @@ const BEATS: Beat[] = [
 // Header nav — every beat that carries a friendly navLabel (logo = Hero).
 const NAV = BEATS.filter((b) => b.navLabel);
 
-const goto = (id: string) => {
-  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
-};
+const goto = scrollToId;
 
 export default function App() {
   const [hideBar, setHideBar] = useState(false);
@@ -61,11 +60,11 @@ export default function App() {
     revealHeader.current = reveal;
     pauseHeaderFade.current = pauseFade;
 
-    // The actual header-state update. CRITICAL: it uses the `pos` the engine hands
-    // it — NOT window.scrollY. Reading scrollY here (right after the engine's
-    // scrollTo write) forced a synchronous reflow on EVERY scroll frame. innerHeight
-    // is cached and refreshed on resize for the same reason. (setState on unchanged
-    // primitives bails out in React, so the only cost is this function running.)
+    // The actual header-state update. It takes the scroll position handed to it (read
+    // ONCE per coalesced frame by onNativeScroll below) rather than reading
+    // window.scrollY itself — so it never forces an extra synchronous reflow per call.
+    // innerHeight is cached and refreshed on resize for the same reason. (setState on
+    // unchanged primitives bails out in React, so the only cost is this function running.)
     let vh = window.innerHeight;
     const apply = (p = window.scrollY) => {
       const y = p;
@@ -77,11 +76,27 @@ export default function App() {
       lastY.current = y;
     };
 
-    // Native scroll drives the header state. (subscribe is kept for the
-    // scroll-linked-visuals contract; the page scrolls natively.)
-    const unsub = frameScroll.subscribe(apply);
+    // ONE rAF-coalesced scroll handler does all of App's per-scroll work: it reads
+    // window.scrollY ONCE per frame and from that single read updates BOTH the header
+    // state (apply) and the active progress segment. The old code had two separate
+    // un-coalesced `scroll` listeners each reading scrollY; merging them removes the
+    // duplicate read and the duplicate listener.
+    //
+    // Active segment is read straight from the frame engine (single source of truth)
+    // instead of a second IntersectionObserver. The old observer watched 1px sentinels
+    // with threshold 0; several were in view at once, so the highlight fired
+    // erratically and disagreed with the frame the engine was actually parked on.
+    const onScrollFrame = (y: number) => {
+      apply(y);
+      setActive(Math.min(frameScroll.indexAt(y), BEATS.length - 1));
+    };
+    let rafId = 0;
     const onNativeScroll = () => {
-      apply();
+      if (rafId) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = 0;
+        onScrollFrame(window.scrollY);
+      });
     };
     const onResize = () => { vh = window.innerHeight; };
 
@@ -89,38 +104,17 @@ export default function App() {
       if (e.clientY <= TOP_ZONE) reveal(); // reach for the top edge -> reveal, then idle-fades
     };
 
-    apply(); // set initial state synchronously (no first-frame flash)
+    onScrollFrame(window.scrollY); // set initial state synchronously (no first-frame flash)
     armFade(); // start the countdown on load so it fades if left untouched
     window.addEventListener("scroll", onNativeScroll, { passive: true });
     window.addEventListener("resize", onResize, { passive: true });
     window.addEventListener("mousemove", onMove, { passive: true });
     return () => {
       pauseFade();
-      unsub();
+      if (rafId) cancelAnimationFrame(rafId);
       window.removeEventListener("scroll", onNativeScroll);
       window.removeEventListener("resize", onResize);
       window.removeEventListener("mousemove", onMove);
-    };
-  }, []);
-
-  // Active progress segment — read straight from the frame engine (single source of
-  // truth) instead of a second IntersectionObserver. The old observer watched 1px
-  // sentinels with threshold 0; several were in view at once, so the highlight fired
-  // erratically and disagreed with the frame the engine was actually parked on. Now
-  // the engine's own nearest-frame index drives it, so the bar can never dis.
-  useEffect(() => {
-    const update = (p = window.scrollY) =>
-      setActive(Math.min(frameScroll.indexAt(p), BEATS.length - 1));
-    const unsub = frameScroll.subscribe(update);
-    // Native scroll updates the active progress segment.
-    const onNative = () => {
-      update();
-    };
-    update();
-    window.addEventListener("scroll", onNative, { passive: true });
-    return () => {
-      unsub();
-      window.removeEventListener("scroll", onNative);
     };
   }, []);
 

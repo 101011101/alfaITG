@@ -16,10 +16,11 @@ import { reducedMotion as reducedMotionSignal } from "@/lib/reducedMotion";
 
 export const TransitionSection = memo(function TransitionSection() {
   // Defer the heavy Spline mount (its ~3.9MB runtime chunk + WebGL context) until
-  // the robot panel is within ~1 viewport of entering. Latched: once mounted it
-  // stays mounted so scrolling back never reloads the scene (which would pop).
+  // the robot panel is nearly on-screen. A small (~10%) lead starts the download
+  // just before the panel arrives instead of a full viewport early. Latched: once
+  // mounted it stays mounted so scrolling back never reloads the scene (would pop).
   const robotRef = useRef<HTMLDivElement>(null);
-  const near = useInViewport(robotRef, "100% 0px");
+  const near = useInViewport(robotRef, "10% 0px");
   const [mountSpline, setMountSpline] = useState(false);
   useEffect(() => {
     if (near) setMountSpline(true);
@@ -55,6 +56,8 @@ export const TransitionSection = memo(function TransitionSection() {
             alt=""
             loading="lazy"
             decoding="async"
+            width={1280}
+            height={854}
             className="h-full w-full object-contain opacity-70"
           />
         ) : (

@@ -34,7 +34,9 @@ export function GooeyText({
   // Keep the latest texts in a ref so the animation loop always reads current
   // copy WITHOUT re-firing the effect when the parent passes a new array literal.
   const textsRef = React.useRef(texts);
-  textsRef.current = texts;
+  React.useEffect(() => {
+    textsRef.current = texts;
+  }, [texts]);
 
   // Honour the user's reduced-motion preference. When set, we skip the blur/morph
   // loop entirely and render a plain, static phrase instead of the gooey effect.
@@ -54,6 +56,9 @@ export function GooeyText({
     let time = performance.now();
     let morph = 0;
     let cooldown = cooldownTime;
+    // Guard so the resting-state style reset is written ONCE on entering the
+    // cooldown window rather than re-applied to the same values every frame.
+    let cooldownApplied = false;
 
     // Seed the spans immediately so nothing is blank during the first cooldown.
     if (text1Ref.current && text2Ref.current) {
@@ -74,15 +79,22 @@ export function GooeyText({
 
     const doCooldown = () => {
       morph = 0;
+      // The resting-state styles are constant, so only write them once per
+      // cooldown window instead of every frame for the ~1.25s it can last.
+      if (cooldownApplied) return;
       if (text1Ref.current && text2Ref.current) {
         text2Ref.current.style.filter = "";
         text2Ref.current.style.opacity = "100%";
         text1Ref.current.style.filter = "";
         text1Ref.current.style.opacity = "0%";
+        cooldownApplied = true;
       }
     };
 
     const doMorph = () => {
+      // Leaving the cooldown window — re-arm the guard so the next cooldown
+      // applies its reset styles once again.
+      cooldownApplied = false;
       morph -= cooldown;
       cooldown = 0;
       let fraction = morph / morphTime;

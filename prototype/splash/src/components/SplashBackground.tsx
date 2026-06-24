@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { PixelCanvas } from "@/components/ui/pixel-perfect-hero";
-import { frameScroll } from "@/lib/frameScroll";
 import { heroCover } from "@/lib/heroCover";
 
 const PARALLAX = 0.1; // background scrolls at 10% of real scroll speed
@@ -12,7 +11,7 @@ const PARALLAX = 0.1; // background scrolls at 10% of real scroll speed
  * is sized to viewport + PARALLAX of the scrollable range so the drift never
  * reveals an edge (covers exactly at scroll 0 and at max scroll).
  */
-export function SplashBackground() {
+function SplashBackgroundImpl() {
   const [colors, setColors] = useState<string[]>([]);
   const [extra, setExtra] = useState(0); // px of canvas below the viewport for the drift
   // Freeze the canvas redraw while the hero's opaque twilight image hides it (no
@@ -25,13 +24,14 @@ export function SplashBackground() {
   useEffect(() => heroCover.subscribe(setPaused), []);
 
   useEffect(() => {
-    const div = document.createElement("div");
-    document.body.appendChild(div);
-    div.className = "text-muted-foreground";
-    const muted = getComputedStyle(div).color;
-    div.className = "text-primary";
-    const primary = getComputedStyle(div).color;
-    document.body.removeChild(div);
+    // Read the design tokens straight off the root element's custom properties
+    // instead of creating/measuring/removing throwaway <div>s. The values are the
+    // same oklch colours the .text-muted-foreground / .text-primary classes resolve
+    // to (--color-* alias --muted-foreground / --primary), which the canvas assigns
+    // directly to ctx.fillStyle (oklch is a valid fillStyle in every current browser).
+    const root = getComputedStyle(document.documentElement);
+    const muted = root.getPropertyValue("--muted-foreground").trim();
+    const primary = root.getPropertyValue("--primary").trim();
     setColors([muted, muted, muted, muted, primary]);
   }, []);
 
@@ -50,9 +50,7 @@ export function SplashBackground() {
       }
     };
 
-    // Native scroll drives the background drift. (subscribe is kept for the
-    // scroll-linked-visuals contract; the page scrolls natively.)
-    const unsub = frameScroll.subscribe(apply);
+    // Native scroll drives the background drift.
     const onNativeScroll = () => {
       apply(window.scrollY);
     };
@@ -66,7 +64,6 @@ export function SplashBackground() {
     ro.observe(document.body);
 
     return () => {
-      unsub();
       window.removeEventListener("scroll", onNativeScroll);
       window.removeEventListener("resize", measure);
       ro.disconnect();
@@ -80,10 +77,13 @@ export function SplashBackground() {
         className="absolute inset-x-0 top-0 will-change-transform"
         style={{ height: `calc(100dvh + ${extra}px)` }}
       >
-        {colors.length > 0 && <PixelCanvas colors={colors} gap={6} paused={paused} />}
+        {colors.length > 0 && <PixelCanvas colors={colors} gap={8} paused={paused} />}
       </div>
       {/* vignette stays pinned to the viewport */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,var(--background)_100%)] opacity-80" />
     </div>
   );
 }
+
+// Prop-less — memoized so App's per-scroll state flips don't re-reconcile the background.
+export const SplashBackground = memo(SplashBackgroundImpl);

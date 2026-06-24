@@ -7,7 +7,7 @@ import { PRODUCTS, type Product } from "@/lib/products";
 function ProductCard({ title, blurb, image, icon: Icon }: Product) {
   return (
     <Card className="w-60 overflow-hidden">
-      <img src={image} alt="" loading="lazy" decoding="async" className="h-28 w-full object-cover" />
+      <img src={image} alt="" loading="lazy" decoding="async" width={240} height={112} className="h-28 w-full object-cover" />
       <CardContent className="pt-4">
         <div className="flex items-center gap-2.5">
           <span className="flex size-9 items-center justify-center rounded-full bg-muted">
@@ -80,8 +80,8 @@ export const ProductsSection = memo(function ProductsSection() {
       </h2>
 
       {/* Accessible product list, exposed ONCE to assistive tech. The visual marquee
-          below repeats every card (repeat=3 × 6 columns), so it's aria-hidden to avoid
-          announcing the same products ~18 times. */}
+          below repeats every card (repeat=2 × 6 columns), so it's aria-hidden to avoid
+          announcing the same products ~12 times. */}
       <ul className="sr-only">
         {PRODUCTS.map((p) => (
           <li key={p.slug}>
@@ -100,7 +100,7 @@ export const ProductsSection = memo(function ProductsSection() {
       >
         <div className="flex flex-row items-center gap-6" style={PLANE_STYLE}>
           {columns.map((reverse, i) => (
-            <Marquee key={i} vertical pauseOnHover reverse={reverse} repeat={3} className="[--duration:42s]">
+            <Marquee key={i} vertical pauseOnHover reverse={reverse} repeat={2} className="[--duration:42s]">
               {PRODUCTS.map((p) => (
                 <ProductCard key={p.slug} {...p} />
               ))}

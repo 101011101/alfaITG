@@ -181,6 +181,8 @@ const NewsCard: React.FC<NewsCardProps> = ({ position, item, handleMove, cardSiz
         alt=""
         loading="lazy"
         decoding="async"
+        width={365}
+        height={139}
         className="h-[38%] w-full shrink-0 border-b border-neutral-200 bg-neutral-100 object-cover"
       />
 
