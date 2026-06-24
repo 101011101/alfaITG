@@ -152,7 +152,11 @@ export function PixelCanvas({ colors, gap = 5, paused = false }: PixelCanvasProp
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const pixelsRef = useRef<Pixel[]>([]);
-  const startRef = useRef(0);
+  // Wave phase is driven by time ACTUALLY rendered (accumulated, clamped), not
+  // wall-clock — so skipWhileScrolling freezes the wave and resumes it seamlessly
+  // instead of teleporting the nodal pattern forward by the scroll duration.
+  const animMsRef = useRef(0);
+  const lastFrameRef = useRef(0);
   const reducedMotionRef = useRef(false);
   const pausedRef = useRef(false); // gate: frozen while the hero covers the canvas
 
@@ -208,7 +212,13 @@ export function PixelCanvas({ colors, gap = 5, paused = false }: PixelCanvasProp
 
     // Crossfade the figure weights: b sweeps 0→1→0 so the dark valleys migrate
     // figure 1 → figure 2 → figure 1. Reduced motion → frozen on fig 1.
-    const t = (now - startRef.current) / 1000;
+    // Advance the wave by the time since the last DRAWN frame, clamped so a
+    // scroll-skip / tab-away gap (which paused drawing) can't snap the phase.
+    // Normal 15fps frame ≈ 66ms; the 100ms clamp leaves real frames untouched.
+    const last = lastFrameRef.current || now;
+    lastFrameRef.current = now;
+    animMsRef.current += Math.min(now - last, 100);
+    const t = animMsRef.current / 1000;
     const b = reducedMotionRef.current ? 0 : (1 - Math.cos(WAVE.omega * t)) / 2;
     waveW1 = 1 - b;
     waveW2 = b;
@@ -249,7 +259,6 @@ export function PixelCanvas({ colors, gap = 5, paused = false }: PixelCanvasProp
 
   useEffect(() => {
     reducedMotionRef.current = reducedMotion.get();
-    startRef.current = performance.now();
     init();
 
     // Debounce resize-driven re-inits: init() rebuilds the entire per-pixel array
