@@ -13,10 +13,17 @@ import { frameScroll } from "@/lib/frameScroll";
 const clamp = (v: number) => Math.min(Math.max(v, 0), 1);
 const PANELS = 3; // Robot, Products, Proof
 const CONTACT_EMAIL = "IR@alfaitg.com";
-// Rail height = one viewport per panel transition, plus the Contact + Footer
-// beats that follow the horizontal track. PANELS horizontal screens (Robot,
-// Products, Proof) + Contact + Footer = PANELS + 2 full-viewport beats.
-const RAIL_VH = (PANELS + 2) * 100; // 500vh
+// Hoisted so they aren't fresh references on every HorizontalRail render (which
+// would otherwise bust InkReveal's prop memoization).
+const INK_MASK_COLOR: [number, number, number] = [0, 0, 0];
+const INK_STYLE = { opacity: 0.9 } as const;
+// Viewports of scroll per beat — raise to SLOW the scroll through the rail (2 =
+// half speed). Scales the rail height, each transition's scroll distance, and the
+// sentinel positions together so they stay in lock-step.
+const BEAT = 1;
+// Rail height = BEAT viewports per beat: PANELS horizontal screens (Robot, Products,
+// Proof) + Contact + Footer, plus one viewport for the sticky stage itself.
+const RAIL_VH = ((PANELS + 1) * BEAT + 1) * 100; // 900vh at BEAT=2
 
 export function HorizontalRail() {
   const railRef = useRef<HTMLElement>(null);
@@ -57,72 +64,96 @@ export function HorizontalRail() {
   // Jump down to the footer's structured contact form (the alternative to the
   // overlay's instant mailto CTA). Uses the frame engine so it snaps cleanly.
   const goToFooter = () => {
-    const el = document.getElementById("footer");
-    if (el) frameScroll.goToPos(el.getBoundingClientRect().top + window.scrollY);
+    document.getElementById("footer")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   useEffect(() => {
-    // rAF-throttle: scroll/resize events only flag a pending update; the actual
-    // geometry read + style writes happen once per frame, coalescing bursts of
-    // events into a single reflow.
-    let rafId = 0;
-    const update = () => {
-      rafId = 0;
+    // Geometry is cached and recomputed ONLY on resize, so the per-frame update
+    // does zero layout reads (no getBoundingClientRect during scroll) — it just
+    // writes transforms from the scroll position handed to it.
+    let vh = 0;
+    let railTop = 0;
+    let railTotal = 0;
+    const measure = () => {
       const rail = railRef.current;
+      if (!rail) return;
+      vh = window.innerHeight;
+      railTop = rail.getBoundingClientRect().top + window.scrollY; // absolute doc offset
+      railTotal = rail.offsetHeight - vh; // scrollable distance inside the rail
+    };
+
+    // `p` = current scroll position. Pure writes, no reads.
+    const update = (p: number) => {
       const track = trackRef.current;
       const contact = contactRef.current;
-      if (!rail || !track || !contact) return;
-      const vh = window.innerHeight;
-      const rect = rail.getBoundingClientRect();
-      const total = rail.offsetHeight - vh; // scrollable distance inside the rail
-      const sc = Math.min(Math.max(-rect.top, 0), total);
+      if (!track || !contact) return;
+      const beat = vh * BEAT; // scroll distance for one beat
+      const sc = Math.min(Math.max(p - railTop, 0), railTotal);
 
-      // HORIZONTAL travel: one screen of scroll per panel transition.
-      const hTravel = (PANELS - 1) * vh;
-      const tx = (Math.min(sc, hTravel) / vh) * 100; // vw
+      // HORIZONTAL travel: BEAT screens of scroll per panel transition.
+      const hTravel = (PANELS - 1) * beat;
+      const tx = (Math.min(sc, hTravel) / beat) * 100; // vw
       track.style.transform = `translate3d(-${tx}vw, 0, 0)`;
 
       // CONTACT = its OWN full-screen frame after Proof. The track (Proof/news)
       // fades OUT as Contact fades IN, so Contact never bleeds over static news.
-      const c = clamp((sc - hTravel) / vh);
+      const c = clamp((sc - hTravel) / beat);
       contact.style.opacity = String(c);
       track.style.opacity = String(1 - c);
       setRevealed((prev) => (prev === c >= 1 ? prev : c >= 1));
 
       // FOOTER = its OWN full-screen frame after Contact. A final panel rises to
       // cover the bottom third while the CTA shifts up to stay clear of it.
-      const f = clamp((sc - (hTravel + vh)) / vh); // 0→1
+      const f = clamp((sc - (hTravel + beat)) / beat); // 0→1
       if (footerRef.current)
         footerRef.current.style.transform = `translateY(${(1 - f) * 100}%)`;
       if (ctaRef.current)
         ctaRef.current.style.transform = `translateY(-${f * 30}vh)`;
     };
 
-    const onScroll = () => {
-      if (rafId) return; // a frame is already queued — coalesce this event
-      rafId = requestAnimationFrame(update);
+    // SYNCHRONIZED path: the frame engine calls this inside its own rAF, the same
+    // frame it moves the page — so the track is locked to the scroll, not a frame
+    // behind it (which is what made it look jagged).
+    const unsub = frameScroll.subscribe(update);
+
+    // Native scrolling drives the rail. rAF-coalesced so native scroll bursts
+    // collapse to one update. (subscribe above is kept for the scroll-linked-
+    // visuals contract; the page scrolls natively.)
+    let rafId = 0;
+    const onNativeScroll = () => {
+      if (rafId) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = 0;
+        update(window.scrollY);
+      });
+    };
+    const onResize = () => {
+      measure();
+      update(window.scrollY);
     };
 
-    update();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
+    measure();
+    update(window.scrollY);
+    window.addEventListener("scroll", onNativeScroll, { passive: true });
+    window.addEventListener("resize", onResize);
     return () => {
+      unsub();
       if (rafId) cancelAnimationFrame(rafId);
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
+      window.removeEventListener("scroll", onNativeScroll);
+      window.removeEventListener("resize", onResize);
     };
   }, []);
 
   return (
     <section ref={railRef} className="relative" style={{ height: `${RAIL_VH}vh` }}>
       {/* vertical sentinels = progress-bar + nav anchors (no CSS snap) */}
-      <div id="transition" data-label="Schematic" className="absolute top-0 h-px w-full" />
-      <div id="products" data-label="Products" className="absolute h-px w-full" style={{ top: "100vh" }} />
-      <div id="proof" data-label="Proof" className="absolute h-px w-full" style={{ top: "200vh" }} />
-      <div id="contact" data-label="Contact" className="absolute h-px w-full" style={{ top: "300vh" }} />
-      <div id="footer" data-label="More" className="absolute h-px w-full" style={{ top: "400vh" }} />
+      <div id="transition" data-label="Schematic" className="absolute top-0 h-px w-full snap-start snap-always" />
+      <div id="products" data-label="Products" className="absolute h-px w-full snap-start snap-always" style={{ top: `${1 * BEAT * 100}vh` }} />
+      <div id="proof" data-label="Proof" className="absolute h-px w-full snap-start snap-always" style={{ top: `${2 * BEAT * 100}vh` }} />
+      <div id="contact" data-label="Contact" className="absolute h-px w-full snap-start snap-always" style={{ top: `${3 * BEAT * 100}vh` }} />
+      <div id="footer" data-label="More" className="absolute h-px w-full snap-start snap-always" style={{ top: `${4 * BEAT * 100}vh` }} />
 
-      <div className="sticky top-0 h-screen overflow-hidden">
+      <div className="sticky top-0 h-dvh overflow-hidden">
         {/* horizontal track of full-screen panels */}
         <div
           ref={trackRef}
@@ -150,18 +181,20 @@ export function HorizontalRail() {
           aria-hidden={!revealed}
         >
           <img
-            src="/media/images/hero/f22-pacific.jpg"
+            src="/media/images/hero/f22-pacific.webp"
             alt=""
+            loading="lazy"
+            decoding="async"
             className="absolute inset-0 h-full w-full object-cover"
           />
           {/* The cross-fade reveals this BLACK mask (80% — image faintly shows
               behind). Always mounted so the fade is to black, not the image; the
               cursor trail only enables once fully revealed. */}
           <InkReveal
-            maskColor={[0, 0, 0]}
+            maskColor={INK_MASK_COLOR}
             brushSize={147}
             enabled={revealed}
-            style={{ opacity: 0.9 }}
+            style={INK_STYLE}
           />
           <div
             ref={ctaRef}
@@ -202,7 +235,7 @@ export function HorizontalRail() {
         <footer
           ref={footerRef}
           style={{ transform: "translateY(100%)" }}
-          className="absolute inset-x-0 bottom-0 z-20 h-[64vh] overflow-y-auto border-t border-white/15 bg-black/95 backdrop-blur-md"
+          className="absolute inset-x-0 bottom-0 z-20 h-[64dvh] overflow-y-auto border-t border-white/15 bg-black/95 backdrop-blur-md"
         >
           <div className="mx-auto grid max-w-5xl grid-cols-1 gap-10 px-8 py-9 text-left text-white/80 md:grid-cols-2">
             {/* LEFT — real contact form. No backend in this sandbox, so submit
@@ -243,7 +276,7 @@ export function HorizontalRail() {
                     value={form.name}
                     onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                     placeholder="Your Name"
-                    className="rounded-md border border-white/20 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-white/50 focus:outline-none"
+                    className="rounded-md border border-white/20 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/55 focus:border-white/50 focus:outline-none"
                   />
                   <label htmlFor="contact-email" className="sr-only">
                     Email address (required)
@@ -259,7 +292,7 @@ export function HorizontalRail() {
                     placeholder="Email*"
                     aria-invalid={!!formError}
                     aria-describedby={formError ? "contact-error" : undefined}
-                    className="rounded-md border border-white/20 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-white/50 focus:outline-none"
+                    className="rounded-md border border-white/20 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/55 focus:border-white/50 focus:outline-none"
                   />
                   <label htmlFor="contact-message" className="sr-only">
                     Project details
@@ -271,7 +304,7 @@ export function HorizontalRail() {
                     value={form.message}
                     onChange={(e) => setForm((f) => ({ ...f, message: e.target.value }))}
                     placeholder="Share Your Project Details"
-                    className="resize-none rounded-md border border-white/20 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-white/50 focus:outline-none"
+                    className="resize-none rounded-md border border-white/20 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/55 focus:border-white/50 focus:outline-none"
                   />
                   {/* Attachments removed: mailto: cannot carry files, so a real
                       attach control here would be non-functional. */}
@@ -286,7 +319,7 @@ export function HorizontalRail() {
                   >
                     Send
                   </button>
-                  <p className="text-[11px] leading-snug text-white/30">
+                  <p className="text-[11px] leading-snug text-white/55">
                     Sending opens your email client with the message prefilled —
                     nothing is submitted to a server.
                   </p>
@@ -347,7 +380,7 @@ export function HorizontalRail() {
               </div>
             </div>
           </div>
-          <div className="px-8 pb-4 text-center text-[11px] text-white/30">
+          <div className="px-8 pb-4 text-center text-[11px] text-white/55">
             Copyright © 2026 Alfa ITG - All Rights Reserved.
           </div>
         </footer>

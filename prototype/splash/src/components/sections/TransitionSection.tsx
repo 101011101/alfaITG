@@ -7,20 +7,64 @@
 //     moves pass THROUGH to the robot; only the nodes are pointer-events-auto,
 //     so hovering a node still pauses + expands its card.
 // Background is now transparent — the Silent-Precision pixel canvas shows through.
+import { memo, useEffect, useRef, useState } from "react";
 import RadialOrbitalTimeline from "@/components/ui/radial-orbital-timeline";
 import { SplineScene } from "@/components/ui/splite";
 import { COMPANY } from "@/lib/products";
+import { useInViewport } from "@/lib/useInViewport";
+import { reducedMotion as reducedMotionSignal } from "@/lib/reducedMotion";
 
-export function TransitionSection() {
+export const TransitionSection = memo(function TransitionSection() {
+  // Defer the heavy Spline mount (its ~3.9MB runtime chunk + WebGL context) until
+  // the robot panel is within ~1 viewport of entering. Latched: once mounted it
+  // stays mounted so scrolling back never reloads the scene (which would pop).
+  const robotRef = useRef<HTMLDivElement>(null);
+  const near = useInViewport(robotRef, "100% 0px");
+  const [mountSpline, setMountSpline] = useState(false);
+  useEffect(() => {
+    if (near) setMountSpline(true);
+  }, [near]);
+
+  // The live Spline robot tracks the CURSOR — pointless on touch (no cursor) and
+  // expensive (WebGL + ~3.9MB) on phones, and it ignores prefers-reduced-motion.
+  // On a coarse pointer OR reduced-motion we swap it for a static schematic image.
+  const [staticFallback, setStaticFallback] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const coarse = window.matchMedia("(pointer: coarse)");
+    const apply = () =>
+      setStaticFallback(coarse.matches || reducedMotionSignal.get());
+    apply();
+    coarse.addEventListener("change", apply);
+    const unsubscribe = reducedMotionSignal.subscribe(apply);
+    return () => {
+      coarse.removeEventListener("change", apply);
+      unsubscribe();
+    };
+  }, []);
+
   return (
     <section className="relative h-full w-full overflow-hidden">
       {/* Robot — BELOW the orbit, interactive across the WHOLE frame so it tracks
-          the cursor everywhere (the canvas now fills the panel, not a 460px box). */}
-      <div className="pointer-events-auto absolute inset-0 z-[10]">
-        <SplineScene
-          scene="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode"
-          className="h-full w-full"
-        />
+          the cursor everywhere (the canvas now fills the panel, not a 460px box).
+          On touch / reduced-motion this is a static schematic instead of WebGL. */}
+      <div ref={robotRef} className="pointer-events-auto absolute inset-0 z-[10]">
+        {staticFallback ? (
+          <img
+            src="/media/images/schematic/airframe-cutaway.webp"
+            alt=""
+            loading="lazy"
+            decoding="async"
+            className="h-full w-full object-contain opacity-70"
+          />
+        ) : (
+          mountSpline && (
+            <SplineScene
+              scene="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode"
+              className="h-full w-full"
+            />
+          )
+        )}
       </div>
 
       {/* Orbit — ON TOP, container non-interactive (moves pass through to the
@@ -41,4 +85,4 @@ export function TransitionSection() {
       </div>
     </section>
   );
-}
+});

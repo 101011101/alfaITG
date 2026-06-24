@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
+import { frameClock } from "@/lib/frameClock";
+import { reducedMotion } from "@/lib/reducedMotion";
 
 /* -----------------------------------------------------------------------------
  * CANVAS — RANDOM SHIMMER + COORDINATED CHLADNI NODE LINES
@@ -141,16 +143,18 @@ function createPixel(
 type PixelCanvasProps = {
   colors: string[];
   gap?: number;
+  /** Freeze the redraw loop (e.g. while an opaque layer fully covers the canvas).
+   * The last frame stays painted; flipping back to false resumes the loop. */
+  paused?: boolean;
 };
 
-export function PixelCanvas({ colors, gap = 5 }: PixelCanvasProps) {
+export function PixelCanvas({ colors, gap = 5, paused = false }: PixelCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const pixelsRef = useRef<Pixel[]>([]);
-  const animationRef = useRef<number>(0);
-  const lastFrameRef = useRef(performance.now());
   const startRef = useRef(performance.now());
   const reducedMotionRef = useRef(false);
+  const pausedRef = useRef(false); // gate: frozen while the hero covers the canvas
 
   const init = useCallback(() => {
     const canvas = canvasRef.current;
@@ -192,78 +196,80 @@ export function PixelCanvas({ colors, gap = 5 }: PixelCanvasProps) {
     pixelsRef.current = pixels;
   }, [colors, gap]);
 
-  const animate = useCallback(() => {
-    cancelAnimationFrame(animationRef.current);
-    const frameInterval = 1000 / 60;
+  // One frame of the shimmer/Chladni draw. The master clock owns the 20fps cap,
+  // pause-while-covered, scroll-skip and tab-hidden gating — this is purely the draw.
+  const renderFrame = useCallback((now: number) => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !ctx) return;
 
-    const loop = () => {
-      animationRef.current = requestAnimationFrame(loop);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.globalAlpha = WAVE.brightness; // global dimmer over both layers
 
-      const now = performance.now();
-      const elapsed = now - lastFrameRef.current;
-      if (elapsed < frameInterval) return;
-      lastFrameRef.current = now - (elapsed % frameInterval);
+    // Crossfade the figure weights: b sweeps 0→1→0 so the dark valleys migrate
+    // figure 1 → figure 2 → figure 1. Reduced motion → frozen on fig 1.
+    const t = (now - startRef.current) / 1000;
+    const b = reducedMotionRef.current ? 0 : (1 - Math.cos(WAVE.omega * t)) / 2;
+    waveW1 = 1 - b;
+    waveW2 = b;
 
-      const canvas = canvasRef.current;
-      const ctx = canvas?.getContext("2d");
-      if (!canvas || !ctx) return;
+    const figNorm = WAVE.figNorm;
+    const figGamma = WAVE.figGamma;
+    const shimmerFloor = WAVE.shimmerFloor;
 
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.globalAlpha = WAVE.brightness; // global dimmer over both layers
-
-      // Crossfade the figure weights: b sweeps 0→1→0 so the dark valleys migrate
-      // figure 1 → figure 2 → figure 1. Reduced motion → frozen on fig 1.
-      const t = (now - startRef.current) / 1000;
-      const b = reducedMotionRef.current ? 0 : (1 - Math.cos(WAVE.omega * t)) / 2;
-      waveW1 = 1 - b;
-      waveW2 = b;
-
-      const figNorm = WAVE.figNorm;
-      const figGamma = WAVE.figGamma;
-      const shimmerFloor = WAVE.shimmerFloor;
-
-      for (const p of pixelsRef.current) {
-        // Entrance bloom, then the perpetual random shimmer (updates p.size).
-        if (!p.isShimmer) {
-          p.appear();
-          continue;
-        }
-        p.shimmer();
-
-        // RANDOM SHIMMER (antinodes): each dot's current size also drives its
-        // brightness, so dots twinkle between dim/small and bright/large — the
-        // "random white splotches" of the resting background.
-        const tw = (p.size - p.minSize) / (p.maxSize - p.minSize); // 0…1
-        let bright = shimmerFloor + (1 - shimmerFloor) * tw;
-
-        // NODE DARKENING: local wave amplitude |F| scales brightness — full at
-        // antinodes, smoothly down to pitch black at the nodal lines (|F| = 0).
-        const F = waveW1 * p.w1 + waveW2 * p.w2;
-        let factor = Math.abs(F) / figNorm;
-        if (factor > 1) factor = 1;
-        if (figGamma !== 1) factor = Math.pow(factor, figGamma);
-        bright *= factor;
-
-        // Grey level: per-pixel tone (black↔white) × twinkle × node darkening.
-        const val = (255 * p.tone * bright) | 0;
-        ctx.fillStyle = `rgb(${val}, ${val}, ${val})`;
-        const offset = (waveGap - p.size) / 2;
-        ctx.fillRect(p.x + offset, p.y + offset, p.size, p.size);
+    for (const p of pixelsRef.current) {
+      // Entrance bloom, then the perpetual random shimmer (updates p.size).
+      if (!p.isShimmer) {
+        p.appear();
+        continue;
       }
-    };
+      p.shimmer();
 
-    animationRef.current = requestAnimationFrame(loop);
+      // RANDOM SHIMMER (antinodes): each dot's current size also drives its
+      // brightness, so dots twinkle between dim/small and bright/large — the
+      // "random white splotches" of the resting background.
+      const tw = (p.size - p.minSize) / (p.maxSize - p.minSize); // 0…1
+      let bright = shimmerFloor + (1 - shimmerFloor) * tw;
+
+      // NODE DARKENING: local wave amplitude |F| scales brightness — full at
+      // antinodes, smoothly down to pitch black at the nodal lines (|F| = 0).
+      const F = waveW1 * p.w1 + waveW2 * p.w2;
+      let factor = Math.abs(F) / figNorm;
+      if (factor > 1) factor = 1;
+      if (figGamma !== 1) factor = Math.pow(factor, figGamma);
+      bright *= factor;
+
+      // Grey level: per-pixel tone (black↔white) × twinkle × node darkening.
+      const val = (255 * p.tone * bright) | 0;
+      ctx.fillStyle = `rgb(${val}, ${val}, ${val})`;
+      const offset = (waveGap - p.size) / 2;
+      ctx.fillRect(p.x + offset, p.y + offset, p.size, p.size);
+    }
   }, []);
 
   useEffect(() => {
-    reducedMotionRef.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    reducedMotionRef.current = reducedMotion.get();
     startRef.current = performance.now();
     init();
 
     const resizeObserver = new ResizeObserver(() => init());
     if (wrapRef.current) resizeObserver.observe(wrapRef.current);
 
-    animate();
+    // Keep the reduced-motion flag fresh on a live flip (the old read-once went
+    // stale); re-init so the new baseSpeed/entrance-delay take effect.
+    const unsubRM = reducedMotion.subscribe((v) => {
+      reducedMotionRef.current = v;
+      init();
+    });
+
+    // Join the master clock: 20fps, frozen while the hero covers it, and — the key
+    // win — NOT redrawn on frames the page is scrolling (skipWhileScrolling), so
+    // scroll frames never wait on a full-canvas redraw.
+    const unsub = frameClock.subscribeDecoration((ctx) => renderFrame(ctx.now), {
+      fps: 20,
+      enabled: () => !pausedRef.current,
+      skipWhileScrolling: true,
+    });
 
     // Live tuning handle in the console. Patching mode integers / colours needs a
     // re-init (remap the per-pixel shapes + LUT), so tune() always re-inits.
@@ -275,13 +281,26 @@ export function PixelCanvas({ colors, gap = 5 }: PixelCanvasProps) {
       get config() {
         return { ...WAVE };
       },
+      pause: () => { pausedRef.current = true; },
+      resume: () => { pausedRef.current = false; frameClock.requestTick(); },
     };
 
     return () => {
       resizeObserver.disconnect();
-      cancelAnimationFrame(animationRef.current);
+      unsub();
+      unsubRM();
+      // Drop the console tuning handle so it can't operate on a dead component (and
+      // leak this effect's closures) after unmount.
+      delete (window as unknown as { __pixelWave?: unknown }).__pixelWave;
     };
-  }, [init, animate]);
+  }, [init, renderFrame]);
+
+  // External pause control (e.g. the hero covering the canvas). The clock's
+  // enabled() reads pausedRef each frame; on resume we wake the clock.
+  useEffect(() => {
+    pausedRef.current = paused;
+    if (!paused) frameClock.requestTick();
+  }, [paused]);
 
   return (
     <div ref={wrapRef} className="absolute inset-0 overflow-hidden">

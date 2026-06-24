@@ -12,6 +12,20 @@
     />
     <meta name="theme-color" content="#000000" />
 
+    <!-- Warm the connection to Spline's CDN so the deferred 3D scene chunk +
+         asset start with the DNS/TLS handshake already done. -->
+    <link rel="preconnect" href="https://prod.spline.design" crossorigin />
+    <link rel="dns-prefetch" href="https://prod.spline.design" />
+
+    <!-- Preload the hero background image (LCP element) so it starts fetching
+         immediately at high priority, before the JS bundle parses. -->
+    <link
+      rel="preload"
+      as="image"
+      href="/media/images/hero/f22-twilight.webp"
+      fetchpriority="high"
+    />
+
     <!-- TODO(dev): replace https://www.alfaitg.com/ with the real production domain. -->
     <link rel="canonical" href="https://www.alfaitg.com/" />
 

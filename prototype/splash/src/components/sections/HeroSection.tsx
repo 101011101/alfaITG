@@ -2,14 +2,15 @@
 // with the thesis overlaid ON the media (visible before scroll, stays at the end).
 // NOTE: ScrollExpandMedia scroll-jacks the window — pinned at top until expanded.
 // The on-image CTAs navigate only after the media is expanded (scroll unlocks).
+import { memo } from "react";
 import ScrollExpandMedia from "@/components/ui/scroll-expansion-hero";
 
 const goto = (id: string) =>
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
 
-export function HeroSection() {
+export const HeroSection = memo(function HeroSection() {
   return (
-    <section id="hero" data-label="Hero" className="relative">
+    <section id="hero" data-label="Hero" className="relative snap-start">
       <ScrollExpandMedia
         mediaType="video"
         // mp4 (H.264) is the primary source — plays in Safari/iOS and Chromium.
@@ -17,8 +18,8 @@ export function HeroSection() {
         // .mp4 here as the Safari fallback. poster is always set on the <video>, so
         // even if every source fails the user still sees the still frame.
         mediaSrc="/media/videos/f22-hero.mp4"
-        posterSrc="/media/images/hero/f22-hero-poster.jpg"
-        bgImageSrc="/media/images/hero/f22-twilight.jpg"
+        posterSrc="/media/images/hero/f22-hero-poster.webp"
+        bgImageSrc="/media/images/hero/f22-twilight.webp"
         title="Alfa ITG"
         date="Industrial AI"
         scrollToExpand="Scroll to expand"
@@ -54,4 +55,4 @@ export function HeroSection() {
       />
     </section>
   );
-}
+});

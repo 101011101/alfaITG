@@ -1,4 +1,5 @@
 // BEAT 3 — Products: full-bleed tilted 3D marquee. Rendered as a horizontal-rail panel.
+import { memo } from "react";
 import { Marquee } from "@/components/ui/marquee";
 import { Card, CardContent } from "@/components/ui/card";
 import { PRODUCTS, type Product } from "@/lib/products";
@@ -6,7 +7,7 @@ import { PRODUCTS, type Product } from "@/lib/products";
 function ProductCard({ title, blurb, image, icon: Icon }: Product) {
   return (
     <Card className="w-60 overflow-hidden">
-      <img src={image} alt="" className="h-28 w-full object-cover" />
+      <img src={image} alt="" loading="lazy" decoding="async" className="h-28 w-full object-cover" />
       <CardContent className="pt-4">
         <div className="flex items-center gap-2.5">
           <span className="flex size-9 items-center justify-center rounded-full bg-muted">
@@ -64,7 +65,13 @@ const MASK_STYLE = {
   transform: "translateZ(0)",
 } as const;
 
-export function ProductsSection() {
+// The tilted plane transform — hoisted so it isn't a fresh object each render.
+const PLANE_STYLE = {
+  transform:
+    "translateZ(-120px) rotateX(16deg) rotateY(-8deg) rotateZ(14deg) scale(1.15)",
+} as const;
+
+export const ProductsSection = memo(function ProductsSection() {
   const columns = [false, true, false, true, false, true]; // alternate scroll direction
   return (
     <section className="relative h-full w-full overflow-hidden">
@@ -72,20 +79,26 @@ export function ProductsSection() {
         Our Key Offerings
       </h2>
 
+      {/* Accessible product list, exposed ONCE to assistive tech. The visual marquee
+          below repeats every card (repeat=3 × 6 columns), so it's aria-hidden to avoid
+          announcing the same products ~18 times. */}
+      <ul className="sr-only">
+        {PRODUCTS.map((p) => (
+          <li key={p.slug}>
+            {p.title}: {p.blurb}
+          </li>
+        ))}
+      </ul>
+
       {/* Full-bleed tilted marquee plane. The mask (panel-aligned) fades the cards to
           nothing toward every edge and holds clean ~5% gutters on the horizontal sides
           so no card reaches the seams with the Robot / Proof panels. */}
       <div
+        aria-hidden="true"
         className="absolute inset-0 flex flex-row items-center justify-center [perspective:1200px]"
         style={MASK_STYLE}
       >
-        <div
-          className="flex flex-row items-center gap-6"
-          style={{
-            transform:
-              "translateZ(-120px) rotateX(16deg) rotateY(-8deg) rotateZ(14deg) scale(1.15)",
-          }}
-        >
+        <div className="flex flex-row items-center gap-6" style={PLANE_STYLE}>
           {columns.map((reverse, i) => (
             <Marquee key={i} vertical pauseOnHover reverse={reverse} repeat={3} className="[--duration:42s]">
               {PRODUCTS.map((p) => (
@@ -97,4 +110,4 @@ export function ProductsSection() {
       </div>
     </section>
   );
-}
+});

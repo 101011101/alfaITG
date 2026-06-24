@@ -4,6 +4,7 @@ import { LogoBanner } from "./components/LogoBanner";
 import { HeroSection } from "./components/sections/HeroSection";
 import { HorizontalRail } from "./components/HorizontalRail";
 import { frameScroll } from "./lib/frameScroll";
+import { heroZoom } from "./lib/heroZoom";
 
 // Single source of truth for every beat of the page. Each view below is derived
 // from this array so the progress bar, header nav and snap engine can never drift:
@@ -23,9 +24,7 @@ const BEATS: Beat[] = [
 const NAV = BEATS.filter((b) => b.navLabel);
 
 const goto = (id: string) => {
-  const el = document.getElementById(id);
-  if (!el) return;
-  frameScroll.goToPos(el.getBoundingClientRect().top + window.scrollY);
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 };
 
 export default function App() {
@@ -34,6 +33,7 @@ export default function App() {
   const [active, setActive] = useState(0);
   const [atTop, setAtTop] = useState(true);
   const lastY = useRef(0);
+  const heroFillRef = useRef<HTMLDivElement>(null); // Hero segment fill, driven by zoom progress
   const hoveringHeader = useRef(false); // pause the idle-fade while the nav is in use
   const revealHeader = useRef<() => void>(() => {});
   const pauseHeaderFade = useRef<() => void>(() => {});
@@ -61,52 +61,81 @@ export default function App() {
     revealHeader.current = reveal;
     pauseHeaderFade.current = pauseFade;
 
-    const onScroll = () => {
-      const y = window.scrollY;
+    // The actual header-state update. CRITICAL: it uses the `pos` the engine hands
+    // it — NOT window.scrollY. Reading scrollY here (right after the engine's
+    // scrollTo write) forced a synchronous reflow on EVERY scroll frame. innerHeight
+    // is cached and refreshed on resize for the same reason. (setState on unchanged
+    // primitives bails out in React, so the only cost is this function running.)
+    let vh = window.innerHeight;
+    const apply = (p = window.scrollY) => {
+      const y = p;
       setAtTop(y <= 80);
-      setShowCorner(y > window.innerHeight * 0.8);
+      setShowCorner(y > vh * 0.8);
       if (y > lastY.current + DELTA) { pauseFade(); setHideBar(true); } // scrolling down hides now
       else if (y < lastY.current - DELTA) reveal(); // scrolling up reveals, then idle-fades
       else if (y <= 80) reveal(); // settled at the hero: reveal, then idle-fades
       lastY.current = y;
     };
 
+    // Native scroll drives the header state. (subscribe is kept for the
+    // scroll-linked-visuals contract; the page scrolls natively.)
+    const unsub = frameScroll.subscribe(apply);
+    const onNativeScroll = () => {
+      apply();
+    };
+    const onResize = () => { vh = window.innerHeight; };
+
     const onMove = (e: MouseEvent) => {
       if (e.clientY <= TOP_ZONE) reveal(); // reach for the top edge -> reveal, then idle-fades
     };
 
-    onScroll();
+    apply(); // set initial state synchronously (no first-frame flash)
     armFade(); // start the countdown on load so it fades if left untouched
-    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("scroll", onNativeScroll, { passive: true });
+    window.addEventListener("resize", onResize, { passive: true });
     window.addEventListener("mousemove", onMove, { passive: true });
     return () => {
       pauseFade();
-      window.removeEventListener("scroll", onScroll);
+      unsub();
+      window.removeEventListener("scroll", onNativeScroll);
+      window.removeEventListener("resize", onResize);
       window.removeEventListener("mousemove", onMove);
     };
   }, []);
 
-  // Active progress segment = section currently in view.
+  // Active progress segment — read straight from the frame engine (single source of
+  // truth) instead of a second IntersectionObserver. The old observer watched 1px
+  // sentinels with threshold 0; several were in view at once, so the highlight fired
+  // erratically and disagreed with the frame the engine was actually parked on. Now
+  // the engine's own nearest-frame index drives it, so the bar can never dis.
   useEffect(() => {
-    const sections = BEATS.map((b) => document.getElementById(b.id)).filter(
-      Boolean,
-    ) as HTMLElement[];
-    const io = new IntersectionObserver(
-      (entries) =>
-        entries.forEach((e) => {
-          if (e.isIntersecting) {
-            const i = sections.indexOf(e.target as HTMLElement);
-            if (i >= 0) setActive(i);
-          }
-        }),
-      { threshold: 0 },
-    );
-    sections.forEach((s) => io.observe(s));
-    return () => io.disconnect();
-    // threshold:0 (any pixel visible), not 0.5: the watched targets are 1px
-    // `h-px` sentinels, where "50% visible" is a sub-pixel coin-flip that fires
-    // erratically. threshold:0 resolves the active beat reliably.
+    const update = (p = window.scrollY) =>
+      setActive(Math.min(frameScroll.indexAt(p), BEATS.length - 1));
+    const unsub = frameScroll.subscribe(update);
+    // Native scroll updates the active progress segment.
+    const onNative = () => {
+      update();
+    };
+    update();
+    window.addEventListener("scroll", onNative, { passive: true });
+    return () => {
+      unsub();
+      window.removeEventListener("scroll", onNative);
+    };
   }, []);
+
+  // The Hero segment fills with the zoom (which isn't scroll, so the engine-driven
+  // `active` above can't show it). Driven imperatively off the heroZoom signal so a
+  // per-frame zoom value never re-renders App. Only meaningful while on the hero
+  // (active === 0); past that the segment is muted like any other inactive beat.
+  useEffect(() => {
+    const setFill = () => {
+      const el = heroFillRef.current;
+      if (el) el.style.height = `${(active === 0 ? heroZoom.get() : 0) * 100}%`;
+    };
+    setFill();
+    return heroZoom.subscribe(setFill);
+  }, [active]);
 
   // Feed the frame-scroll engine the frame positions (hero top + each rail
   // sentinel), recomputed on resize / layout change. The hero starts/stops the
@@ -147,12 +176,24 @@ export default function App() {
 
   return (
     <>
+      {/* Skip link — first focusable element so keyboard/AT users can bypass the
+          fixed chrome and jump straight to the page content. */}
+      <a
+        href="#main-content"
+        className="sr-only z-[100] rounded bg-background px-4 py-2 text-foreground outline outline-2 outline-foreground focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+      >
+        Skip to content
+      </a>
+
       <SplashBackground />
 
-      {/* Top header */}
+      {/* Top header. Reveals on hover OR keyboard focus (focus-within), and the
+          idle-fade is paused while either is active so it can't vanish mid-use. */}
       <header
         onMouseEnter={() => { hoveringHeader.current = true; pauseHeaderFade.current(); }}
         onMouseLeave={() => { hoveringHeader.current = false; revealHeader.current(); }}
+        onFocusCapture={() => { hoveringHeader.current = true; pauseHeaderFade.current(); setHideBar(false); }}
+        onBlurCapture={() => { hoveringHeader.current = false; revealHeader.current(); }}
         className={`fixed inset-x-0 top-0 z-50 flex h-14 items-center justify-between border-b px-6 transition-[opacity,background-color,border-color] duration-500 ${
           hideBar ? "pointer-events-none opacity-0" : "opacity-100"
         } ${
@@ -207,30 +248,46 @@ export default function App() {
       </button>
 
       {/* Right-edge progress bar: one segment per beat + skip arrows. */}
-      <div className="fixed right-7 top-1/2 z-50 flex -translate-y-1/2 flex-col items-center gap-1">
+      <nav
+        aria-label="Section progress"
+        className="fixed right-7 top-1/2 z-50 flex -translate-y-1/2 flex-col items-center gap-1"
+      >
         {BEATS.map((b, i) => (
           <div key={b.id} className="flex flex-col items-center gap-1">
             <button
-              title={b.label}
+              aria-label={`Go to ${b.label}`}
+              aria-current={active === i ? "true" : undefined}
               onClick={() => goto(b.id)}
-              className={`w-1 rounded transition-all ${
-                active === i ? "h-8 bg-foreground" : "h-6 bg-muted-foreground/40"
+              className={`relative w-1 overflow-hidden rounded transition-all ${
+                active === i ? "h-8" : "h-6"
+              } ${
+                // Hero (i===0) base is always muted; its fill overlay (below) shows
+                // the zoom. Other beats use the plain active/inactive highlight.
+                i !== 0 && active === i ? "bg-foreground" : "bg-muted-foreground/40"
               }`}
-            />
+            >
+              {i === 0 && (
+                <span
+                  ref={heroFillRef}
+                  className="absolute inset-x-0 bottom-0 bg-foreground"
+                  style={{ height: 0 }}
+                />
+              )}
+            </button>
             {i < BEATS.length - 1 && (
               <button
-                title="Skip to next"
+                aria-label={`Skip to ${BEATS[i + 1].label}`}
                 onClick={() => goto(BEATS[i + 1].id)}
-                className="text-[9px] leading-none text-muted-foreground/50 hover:text-foreground"
+                className="text-[9px] leading-none text-muted-foreground/70 hover:text-foreground"
               >
-                ▾
+                <span aria-hidden="true">▾</span>
               </button>
             )}
           </div>
         ))}
-      </div>
+      </nav>
 
-      <main>
+      <main id="main-content">
         <HeroSection />
         <HorizontalRail />
       </main>

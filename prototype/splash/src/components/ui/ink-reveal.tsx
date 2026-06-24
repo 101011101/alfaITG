@@ -60,6 +60,7 @@ export default function InkReveal({
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const stampsRef = useRef<Stamp[]>([]);
   const runningRef = useRef(false);
+  const rafRef = useRef(0); // live rAF id, so the loop can be cancelled on unmount
   const lastPosRef = useRef<{ x: number; y: number } | null>(null);
   const dimsRef = useRef({ w: 0, h: 0 });
 
@@ -130,7 +131,8 @@ export default function InkReveal({
           wobble[2] * Math.sin(a * 7 + seed * 0.7);
         const px = x + Math.cos(a) * r * wob;
         const py = y + Math.sin(a) * r * wob;
-        i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
       }
       ctx.closePath();
       ctx.fill();
@@ -197,8 +199,9 @@ export default function InkReveal({
     }
 
     if (stamps.length) {
-      requestAnimationFrame(loop);
+      rafRef.current = requestAnimationFrame(loop);
     } else {
+      rafRef.current = 0;
       runningRef.current = false;
     }
   }, [carveInk, getCtx, maskRgb, lifetime, rStart]);
@@ -206,9 +209,20 @@ export default function InkReveal({
   const startLoop = useCallback(() => {
     if (!runningRef.current) {
       runningRef.current = true;
-      requestAnimationFrame(loop);
+      rafRef.current = requestAnimationFrame(loop);
     }
   }, [loop]);
+
+  // Cancel any in-flight animation frame on unmount so the loop can't keep redrawing a
+  // detached canvas (and leak) after the component is gone.
+  useEffect(
+    () => () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = 0;
+      runningRef.current = false;
+    },
+    [],
+  );
 
   useEffect(() => {
     resize();

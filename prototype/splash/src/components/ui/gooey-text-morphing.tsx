@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { frameClock } from "@/lib/frameClock";
+import { reducedMotion as reducedMotionSignal } from "@/lib/reducedMotion";
 
 // Inverse smoothstep: fast at the ends (snaps into/out of the sharp word),
 // slow through the middle (lingers on the gooey morph). t and result in [0,1].
@@ -25,6 +27,7 @@ export function GooeyText({
   className,
   textClassName
 }: GooeyTextProps) {
+  const rootRef = React.useRef<HTMLDivElement>(null);
   const text1Ref = React.useRef<HTMLSpanElement>(null);
   const text2Ref = React.useRef<HTMLSpanElement>(null);
 
@@ -33,7 +36,19 @@ export function GooeyText({
   const textsRef = React.useRef(texts);
   textsRef.current = texts;
 
+  // Honour the user's reduced-motion preference. When set, we skip the blur/morph
+  // loop entirely and render a plain, static phrase instead of the gooey effect.
+  // Tracked in state (and updated live via the media-query listener) so the first
+  // paint after mount is already correct.
+  const [reducedMotion, setReducedMotion] = React.useState(false);
+
   React.useEffect(() => {
+    setReducedMotion(reducedMotionSignal.get());
+    return reducedMotionSignal.subscribe(setReducedMotion);
+  }, []);
+
+  React.useEffect(() => {
+    if (reducedMotion) return;
     const list = textsRef.current;
     let textIndex = list.length - 1;
     let time = performance.now();
@@ -82,16 +97,14 @@ export function GooeyText({
       setMorph(easeMorph(fraction));
     };
 
-    let raf = 0;
-
-    // newTime is the rAF timestamp (same clock as performance.now()), so the loop
-    // reads frame time without allocating a Date object each frame.
-    function animate(newTime: number) {
-      raf = requestAnimationFrame(animate);
+    // One morph frame, driven by the master clock at 30fps and paused (via el) when
+    // the Proof panel is off-screen. dt is clamped so resuming after an off-screen
+    // gap (where the clock didn't call us) can't fast-forward the morph in one step.
+    const frame = (now: number) => {
       const current = textsRef.current;
       const shouldIncrementIndex = cooldown > 0;
-      const dt = (newTime - time) / 1000;
-      time = newTime;
+      const dt = Math.min((now - time) / 1000, 0.05);
+      time = now;
 
       cooldown -= dt;
 
@@ -107,18 +120,48 @@ export function GooeyText({
       } else {
         doCooldown();
       }
-    }
+    };
 
-    // Seed the first frame with the same timestamp as `time` so the initial dt is ~0.
-    animate(time);
+    return frameClock.subscribeDecoration((ctx) => frame(ctx.now), {
+      fps: 30,
+      el: () => rootRef.current,
+    });
+  }, [morphTime, cooldownTime, reducedMotion]);
 
-    // Cancel the loop on teardown so re-runs (and StrictMode's mount→unmount→
-    // mount) never leave orphaned rAF loops stacking on the same spans.
-    return () => cancelAnimationFrame(raf);
-  }, [morphTime, cooldownTime]);
+  // Stable, screen-reader-available copy of every phrase. The animated spans are
+  // imperatively rewritten and heavily blurred, so AT reads garbled content from
+  // them — this sr-only node exposes the actual words in a stable form instead.
+  const accessibleText = (
+    <span className="sr-only">{texts.join(". ")}</span>
+  );
+
+  // Reduced motion: no blur/morph loop, just plain static text. We cycle through
+  // the phrases without the gooey effect so the panel still feels alive.
+  if (reducedMotion) {
+    return (
+      <div ref={rootRef} className={cn("relative", className)}>
+        {accessibleText}
+        <div
+          className="relative flex h-full w-full items-center justify-center"
+          aria-hidden="true"
+        >
+          <span
+            className={cn(
+              "w-full px-4 text-center leading-tight break-words text-[clamp(1.75rem,7vw,3.5rem)]",
+              "text-foreground",
+              textClassName
+            )}
+          >
+            {texts[0]}
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className={cn("relative", className)}>
+    <div ref={rootRef} className={cn("relative", className)}>
+      {accessibleText}
       <svg className="absolute h-0 w-0" aria-hidden="true" focusable="false">
         <defs>
           <filter id="threshold">
@@ -141,6 +184,7 @@ export function GooeyText({
       <div
         className="relative flex h-full w-full items-center justify-center"
         style={{ filter: "url(#threshold)" }}
+        aria-hidden="true"
       >
         <span
           ref={text1Ref}

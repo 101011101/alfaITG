@@ -1,7 +1,8 @@
 // Source: "3d-testimonails.tsx" (filename de-typo'd to marquee.tsx).
 // Used by the Products grid (Beat 3).
-import React, { ComponentPropsWithoutRef } from 'react';
+import React, { ComponentPropsWithoutRef, useRef } from 'react';
 import { cn } from '@/lib/utils';
+import { useInViewport } from '@/lib/useInViewport';
 
 interface MarqueeProps extends ComponentPropsWithoutRef<'div'> {
   className?: string;
@@ -27,9 +28,14 @@ export function Marquee({
   ariaRole = 'marquee',
   ...props
 }: MarqueeProps) {
+  // Pause the (otherwise perpetual) marquee CSS animation while the Products
+  // panel is scrolled off-screen, so it isn't compositing behind other beats.
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inView = useInViewport(containerRef, '200px');
   return (
     <div
       {...props}
+      ref={containerRef}
       data-slot="marquee"
       className={cn(
         'group flex overflow-hidden p-2 [--duration:40s] [--gap:1rem] [gap:var(--gap)]',
@@ -55,6 +61,7 @@ export function Marquee({
                   !vertical && 'animate-marquee flex-row',
                   vertical && 'animate-marquee-vertical flex-col',
                   pauseOnHover && 'group-hover:[animation-play-state:paused]',
+                  !inView && '[animation-play-state:paused]',
                   reverse && '[animation-direction:reverse]',
                 )}
               >
@@ -63,7 +70,7 @@ export function Marquee({
             ))}
           </>
         ),
-        [repeat, children, vertical, pauseOnHover, reverse],
+        [repeat, children, vertical, pauseOnHover, reverse, inView],
       )}
     </div>
   );

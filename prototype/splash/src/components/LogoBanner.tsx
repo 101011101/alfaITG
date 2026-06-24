@@ -9,24 +9,44 @@
 
 // Placeholder defence/aerospace wordmarks (transparent SVGs in /public/media/logos).
 // TODO: confirm real ALFA ITG partners + clear logo usage rights before launch.
+// `slug` = the SVG filename; `name` = the human label used for alt text.
 const LOGOS = [
-  "lockheed-martin", "honeywell", "boeing", "thales", "dassault", "safran",
-  "naval-group", "mbda", "rheinmetall", "diehl", "airbus", "leonardo",
+  { slug: "lockheed-martin", name: "Lockheed Martin" },
+  { slug: "honeywell", name: "Honeywell" },
+  { slug: "boeing", name: "Boeing" },
+  { slug: "thales", name: "Thales" },
+  { slug: "dassault", name: "Dassault" },
+  { slug: "safran", name: "Safran" },
+  { slug: "naval-group", name: "Naval Group" },
+  { slug: "mbda", name: "MBDA" },
+  { slug: "rheinmetall", name: "Rheinmetall" },
+  { slug: "diehl", name: "Diehl" },
+  { slug: "airbus", name: "Airbus" },
+  { slug: "leonardo", name: "Leonardo" },
 ];
 
 export function LogoBanner() {
-  const row = [...LOGOS, ...LOGOS]; // duplicated for a seamless -50% loop
+  // Duplicated for a seamless -50% loop. The second copy is purely visual, so it's
+  // hidden from assistive tech (with empty alt) to avoid announcing every partner twice.
+  const row = [
+    ...LOGOS.map((l) => ({ ...l, dup: false })),
+    ...LOGOS.map((l) => ({ ...l, dup: true })),
+  ];
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex h-24 items-end justify-center">
       <div className="group pointer-events-auto relative w-full">
-        <div className="opacity-60 transition-opacity duration-300 group-hover:opacity-100">
+        <div className="opacity-75 transition-opacity duration-300 group-hover:opacity-100">
           <div className="overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_12%,black_88%,transparent)] [-webkit-mask-image:linear-gradient(to_right,transparent,black_12%,black_88%,transparent)]">
-            <div className="flex w-max items-center gap-16 py-5 animate-logo-marquee [transform:perspective(900px)_rotateX(12deg)] group-hover:[animation-play-state:paused]">
-              {row.map((name, i) => (
+            <div
+              className="flex w-max items-center gap-16 py-5 animate-logo-marquee [transform:perspective(900px)_rotateX(12deg)] group-hover:[animation-play-state:paused]"
+              aria-label="Trusted by defence and aerospace partners"
+            >
+              {row.map(({ slug, name, dup }, i) => (
                 <img
                   key={i}
-                  src={`/media/logos/${name}.svg`}
-                  alt={name}
+                  src={`/media/logos/${slug}.svg`}
+                  alt={dup ? "" : `${name} logo`}
+                  aria-hidden={dup || undefined}
                   draggable={false}
                   className="h-7 w-auto select-none object-contain opacity-70 transition-all duration-300 ease-out [filter:brightness(0)_invert(1)] hover:scale-110 hover:opacity-100 hover:[filter:none]"
                 />

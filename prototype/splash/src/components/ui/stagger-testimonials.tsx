@@ -31,7 +31,7 @@ const news: NewsItem[] = [
     headline: "Pentagon expands Palantir's AI role in $10B enterprise deal",
     dek: "The Maven Smart System moves from experiment to operational infrastructure, consolidating data and software across the Army.",
     date: "Mar 2026",
-    imgSrc: "/media/images/industrial/robot-welding.jpg",
+    imgSrc: "/media/images/industrial/robot-welding.webp",
   },
   {
     tempId: 1,
@@ -42,7 +42,7 @@ const news: NewsItem[] = [
     headline: "Industrials lead S&P 500 beat as defense and AI demand surge",
     dek: "U.S. manufacturers posted the biggest earnings surprise of any sector, powered by defense orders and AI capital spending.",
     date: "Mar 2026",
-    imgSrc: "/media/images/schematic/engine-cutaway.png",
+    imgSrc: "/media/images/schematic/engine-cutaway.webp",
   },
   {
     tempId: 2,
@@ -52,7 +52,7 @@ const news: NewsItem[] = [
     headline: "Anduril lands 10-year, $20B-plus Pentagon agreement",
     dek: "The defense-tech firm challenges incumbents RTX and Lockheed Martin after a $5 billion private funding round.",
     date: "Mar 2026",
-    imgSrc: "/media/images/hero/f22-pair-inflight.jpg",
+    imgSrc: "/media/images/hero/f22-pair-inflight.webp",
   },
   {
     tempId: 3,
@@ -62,7 +62,7 @@ const news: NewsItem[] = [
     headline: "Pentagon eyes self-organizing drone swarms as autonomy budget skyrockets",
     dek: "Funding for the Defense Autonomous Working Group could leap from $226 million toward tens of billions under the new proposal.",
     date: "May 2026",
-    imgSrc: "/media/images/industrial/robot-palletizing.jpg",
+    imgSrc: "/media/images/industrial/robot-palletizing.webp",
   },
   {
     tempId: 4,
@@ -73,7 +73,7 @@ const news: NewsItem[] = [
     headline: "Anduril's mega-deal rewrites the rules for Silicon Valley",
     dek: "A turning-point contract pulls venture-backed startups deeper into the defense industrial base — and raises new risks.",
     date: "Mar 2026",
-    imgSrc: "/media/images/hero/f22-twilight.jpg",
+    imgSrc: "/media/images/hero/f22-twilight.webp",
   },
   {
     tempId: 5,
@@ -84,7 +84,7 @@ const news: NewsItem[] = [
     headline: "Defense-tech funding tops $14.6B in 2026, smashing last year",
     dek: "Anduril, Palantir, Shield AI and Saronic lead a record wave of private investment into military AI.",
     date: "Jun 2026",
-    imgSrc: "/media/images/industrial/robot-polishing.jpg",
+    imgSrc: "/media/images/industrial/robot-polishing.webp",
   },
   {
     tempId: 6,
@@ -94,7 +94,7 @@ const news: NewsItem[] = [
     headline: "Scoop: Palantir battles Pentagon over key intelligence contract",
     dek: "A dispute over a DIA award tests how fast software-first firms can scale inside government.",
     date: "May 2026",
-    imgSrc: "/media/images/schematic/airframe-cutaway.png",
+    imgSrc: "/media/images/schematic/airframe-cutaway.webp",
   },
   {
     tempId: 7,
@@ -104,7 +104,7 @@ const news: NewsItem[] = [
     headline: "Embedded AI is redefining how military drones see and decide",
     dek: "On-board perception lets unmanned systems target and navigate even when communications are jammed.",
     date: "Apr 2026",
-    imgSrc: "/media/images/hero/f22-pacific.jpg",
+    imgSrc: "/media/images/hero/f22-pacific.webp",
   },
 ];
 
@@ -141,7 +141,19 @@ const NewsCard: React.FC<NewsCardProps> = ({ position, item, handleMove, cardSiz
 
   return (
     <div
+      // Off-center cards are real controls (click/tap brings them to center), so they
+      // must be reachable and operable by keyboard too. The center card is a no-op.
+      role={isCenter ? undefined : "button"}
+      tabIndex={isCenter ? -1 : 0}
+      aria-label={isCenter ? undefined : `Bring to front: ${item.headline}`}
       onClick={() => handleMove(position)}
+      onKeyDown={(e) => {
+        if (isCenter) return;
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          handleMove(position);
+        }
+      }}
       className={cn(
         // White "paper" clipping so brand mastheads + serif headlines read like
         // real print on the dark Proof panel.
@@ -167,6 +179,8 @@ const NewsCard: React.FC<NewsCardProps> = ({ position, item, handleMove, cardSiz
       <img
         src={item.imgSrc}
         alt=""
+        loading="lazy"
+        decoding="async"
         className="h-[38%] w-full shrink-0 border-b border-neutral-200 bg-neutral-100 object-cover"
       />
 
@@ -205,19 +219,22 @@ export const StaggerTestimonials: React.FC = () => {
   const [cardSize, setCardSize] = useState(365);
   const [list, setList] = useState<NewsItem[]>(news);
 
+  // Rotate the SAME items (stable tempId) rather than re-keying with Math.random().
+  // Stable keys let React move each card's DOM node and animate the transform via CSS;
+  // random keys remounted every card each move, snapping instead of sliding.
   const handleMove = (steps: number) => {
     const newList = [...list];
     if (steps > 0) {
       for (let i = steps; i > 0; i--) {
         const item = newList.shift();
         if (!item) return;
-        newList.push({ ...item, tempId: Math.random() });
+        newList.push(item);
       }
     } else {
       for (let i = steps; i < 0; i++) {
         const item = newList.pop();
         if (!item) return;
-        newList.unshift({ ...item, tempId: Math.random() });
+        newList.unshift(item);
       }
     }
     setList(newList);

@@ -1,8 +1,11 @@
 "use client";
 // NOTE vs. source: `NodeJS.Timeout` -> `ReturnType<typeof setInterval>` so it compiles
 // in a browser/Vite TS setup without @types/node. Behaviour identical.
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { frameClock } from "@/lib/frameClock";
+import { reducedMotion as reducedMotionPref } from "@/lib/reducedMotion";
 // Shared shape (single source of truth) — keeps timelineData structurally
 // coupled to products.ts COMPANY/PRODUCTS at compile time.
 import type { TimelineItem } from "@/lib/products";
@@ -25,16 +28,33 @@ export default function RadialOrbitalTimeline({
   const [autoRotate, setAutoRotate] = useState<boolean>(true);
   const [pulseEffect, setPulseEffect] = useState<Record<number, boolean>>({});
   const [activeNodeId, setActiveNodeId] = useState<number | null>(null);
+  // Honour WCAG 2.2.2: continuous auto-rotation is suppressed when the user
+  // asks for reduced motion. We hold a static, readable layout instead.
+  const [reducedMotion, setReducedMotion] = useState<boolean>(() =>
+    reducedMotionPref.get()
+  );
+  // Orbit radius is derived from the viewport (E3) so the orbit never overflows
+  // narrow phones. Recomputed on resize; clamped to a sensible min/max.
+  const [radius, setRadius] = useState<number>(200);
+  // Expanded card is PORTALED to <body> (fixed position) so it escapes the orbit's
+  // 3D-perspective context, the robot's WebGL layer and the rail's transformed
+  // stacking context entirely — guaranteeing it paints opaque, on top of everything.
+  const [cardAnchor, setCardAnchor] = useState<{
+    id: number;
+    style: React.CSSProperties;
+  } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const orbitRef = useRef<HTMLDivElement>(null);
   const nodeRefs = useRef<Record<number, HTMLDivElement | null>>({});
   // Accumulated idle-spin offset (degrees) added on top of `rotationAngle`.
   const rotationRef = useRef<number>(0);
+  // Hovering icon → card crosses empty space; a short close delay (cancelled when
+  // the cursor reaches the portaled card) keeps the card alive across that gap.
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Pure geometry: position of node `index` at a given total rotation offset.
   const computeNodeStyle = (index: number, total: number, offset: number) => {
     const angle = ((index / total) * 360 + offset) % 360;
-    const radius = 200;
     const radian = (angle * Math.PI) / 180;
 
     const x = radius * Math.cos(radian);
@@ -68,6 +88,27 @@ export default function RadialOrbitalTimeline({
       setRotationAngle((prev) => (prev + folded) % 360);
     }
   };
+
+  // Track the reduced-motion preference and react to live changes (E2). Backed by
+  // the shared singleton (one MediaQueryList for the whole app); we sync once on
+  // mount and subscribe for live flips, cleaning up the subscription on unmount.
+  useEffect(() => {
+    setReducedMotion(reducedMotionPref.get());
+    return reducedMotionPref.subscribe(setReducedMotion);
+  }, []);
+
+  // Derive the orbit radius from the viewport so it never overflows narrow
+  // phones (E3). A fraction of the smaller axis, clamped to [120, 200].
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const apply = () => {
+      const base = Math.min(window.innerWidth, window.innerHeight);
+      setRadius(Math.max(120, Math.min(200, base * 0.32)));
+    };
+    apply();
+    window.addEventListener("resize", apply);
+    return () => window.removeEventListener("resize", apply);
+  }, []);
 
   // Shared open/close bookkeeping (C6) — used by hover, click, and container click.
   const openNode = (id: number, center: boolean) => {
@@ -105,16 +146,72 @@ export default function RadialOrbitalTimeline({
   // Hover a node → STOP the rotation and expand its card in place (no re-center).
   const expandOnHover = (id: number) => openNode(id, false);
 
-  const collapseOnHover = () => closeAll();
+  // Keyboard parity: focusing a node reveals the same card hover would, and
+  // Enter/Space toggle it. Auto-rotation stays paused while a node is focused
+  // (openNode sets autoRotate=false) so the expanded card is readable.
+  const expandOnFocus = (id: number) => {
+    cancelClose();
+    openNode(id, false);
+  };
+
+  const handleNodeKeyDown = (
+    e: React.KeyboardEvent<HTMLDivElement>,
+    id: number
+  ) => {
+    if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleItem(id);
+    } else if (e.key === "Escape" && expandedItems[id]) {
+      e.preventDefault();
+      closeAll();
+    }
+  };
+
+  const cancelClose = () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    closeTimer.current = undefined;
+  };
+  // Close shortly after the cursor leaves BOTH the node and its card.
+  const scheduleClose = () => {
+    cancelClose();
+    closeTimer.current = setTimeout(() => closeAll(), 140);
+  };
+  useEffect(() => () => cancelClose(), []); // clear any pending timer on unmount
+
+  // Position the portaled card next to its node (fixed coords, opens outward).
+  // Re-run whenever the expansion or the base rotation (click-to-center) changes;
+  // the orbit is frozen while a card is open, so a one-shot measure is stable.
+  useLayoutEffect(() => {
+    const id = Number(Object.keys(expandedItems).find((k) => expandedItems[+k]));
+    const el = Number.isFinite(id) ? nodeRefs.current[id] : null;
+    if (!el) {
+      setCardAnchor(null);
+      return;
+    }
+    const r = el.getBoundingClientRect();
+    const openLeft = r.left + r.width / 2 < window.innerWidth / 2;
+    setCardAnchor({
+      id,
+      style: {
+        position: "fixed",
+        top: r.top + r.height / 2,
+        transform: "translateY(-50%)",
+        zIndex: 60,
+        ...(openLeft
+          ? { right: window.innerWidth - r.left + 16 }
+          : { left: r.right + 16 }),
+      },
+    });
+  }, [expandedItems, rotationAngle]);
 
   useEffect(() => {
-    // Smooth 60fps idle rotation via rAF (was a 20fps setInterval that fought
-    // the per-node CSS transition → the glitchy/steppy halo). ~6°/sec.
-    // Drives the spin by mutating node DOM directly (no setState) so idle
-    // rotation doesn't re-render the whole component each frame (E4).
-    if (!autoRotate) return;
-    let raf = 0;
-    let last = 0;
+    // Idle rotation, driven by the master clock: ~6°/s, mutating node DOM directly
+    // (no setState → no re-render per frame). The clock gates it — 30fps, paused
+    // when the panel is off-screen (el), and SKIPPED while the page is scrolling
+    // (skipWhileScrolling) so it never competes with a scroll frame.
+    // WCAG 2.2.2: hold a static layout when the user prefers reduced motion.
+    if (!autoRotate || reducedMotion) return;
     const total = timelineData.length;
     const applyFrame = () => {
       const offset = (rotationAngle + rotationRef.current) % 360;
@@ -127,19 +224,16 @@ export default function RadialOrbitalTimeline({
         el.style.opacity = String(opacity);
       });
     };
-    const tick = (now: number) => {
-      if (last) {
-        const dt = now - last;
-        rotationRef.current = (rotationRef.current + dt * 0.006) % 360;
+    return frameClock.subscribeDecoration(
+      (ctx) => {
+        rotationRef.current = (rotationRef.current + ctx.dt * 0.006) % 360;
         applyFrame();
-      }
-      last = now;
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-    // rotationAngle is read as the base offset; re-arm if it (or autoRotate) changes.
-  }, [autoRotate, rotationAngle, timelineData]);
+      },
+      { fps: 30, el: () => containerRef.current, skipWhileScrolling: true },
+    );
+    // rotationAngle is read as the base offset; re-arm if it (or autoRotate,
+    // the radius, or the reduced-motion preference) changes.
+  }, [autoRotate, rotationAngle, timelineData, radius, reducedMotion]);
 
   const centerViewOnNode = (nodeId: number) => {
     if (!nodeRefs.current[nodeId]) return;
@@ -161,7 +255,7 @@ export default function RadialOrbitalTimeline({
 
   return (
     <div
-      className="w-full h-screen flex flex-col items-center justify-center"
+      className="w-full h-[100dvh] flex flex-col items-center justify-center"
       ref={containerRef}
       onClick={handleContainerClick}
     >
@@ -183,8 +277,6 @@ export default function RadialOrbitalTimeline({
             const isRelated = isRelatedToActive(item.id);
             const isPulsing = pulseEffect[item.id];
             const Icon = item.icon;
-            // Open the card OUTWARD (toward empty space), not over the robot.
-            const openLeft = position.x < 0;
 
             const nodeStyle = {
               transform: `translate(${position.x}px, ${position.y}px)`,
@@ -195,11 +287,26 @@ export default function RadialOrbitalTimeline({
             return (
               <div
                 key={item.id}
-                ref={(el) => (nodeRefs.current[item.id] = el)}
-                className="pointer-events-auto absolute cursor-pointer"
+                ref={(el) => {
+                  nodeRefs.current[item.id] = el;
+                }}
+                className="pointer-events-auto absolute cursor-pointer rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                 style={nodeStyle}
-                onMouseEnter={() => expandOnHover(item.id)}
-                onMouseLeave={collapseOnHover}
+                role="button"
+                tabIndex={0}
+                aria-label={item.title}
+                aria-expanded={!!isExpanded}
+                aria-describedby={
+                  isExpanded ? `orbit-card-${item.id}` : undefined
+                }
+                onMouseEnter={() => {
+                  cancelClose();
+                  expandOnHover(item.id);
+                }}
+                onMouseLeave={scheduleClose}
+                onFocus={() => expandOnFocus(item.id)}
+                onBlur={scheduleClose}
+                onKeyDown={(e) => handleNodeKeyDown(e, item.id)}
                 onClick={(e) => {
                   e.stopPropagation();
                   toggleItem(item.id);
@@ -248,36 +355,48 @@ export default function RadialOrbitalTimeline({
                   absolute top-12  whitespace-nowrap
                   text-xs font-semibold tracking-wider
                   transition-all duration-300
-                  ${isExpanded ? "text-white scale-125" : "text-white/70"}
+                  ${isExpanded ? "text-white scale-125" : "text-white/85"}
                 `}
                 >
                   {item.title}
                 </div>
-
-                {isExpanded && (
-                  <Card
-                    className={`absolute top-1/2 -translate-y-1/2 w-64 overflow-hidden bg-black/90 backdrop-blur-lg border-white/30 shadow-xl shadow-white/10 ${
-                      openLeft ? "right-full mr-4" : "left-full ml-4"
-                    }`}
-                  >
-                    <img
-                      src={item.image}
-                      alt=""
-                      className="h-28 w-full object-cover"
-                    />
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm">{item.title}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="text-xs text-white/80">
-                      <p>{item.content}</p>
-                    </CardContent>
-                  </Card>
-                )}
               </div>
             );
           })}
         </div>
       </div>
+
+      {cardAnchor &&
+        (() => {
+          const item = timelineData.find((t) => t.id === cardAnchor.id);
+          if (!item) return null;
+          return createPortal(
+            <Card
+              id={`orbit-card-${item.id}`}
+              role="region"
+              aria-label={`${item.title} details`}
+              onMouseEnter={cancelClose}
+              onMouseLeave={scheduleClose}
+              style={cardAnchor.style}
+              className="isolate w-64 overflow-hidden border-white/30 bg-neutral-950 shadow-xl shadow-white/10"
+            >
+              <img
+                src={item.image}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                className="h-28 w-full object-cover"
+              />
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">{item.title}</CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs text-white/80">
+                <p>{item.content}</p>
+              </CardContent>
+            </Card>,
+            document.body,
+          );
+        })()}
     </div>
   );
 }

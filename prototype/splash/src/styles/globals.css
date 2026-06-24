@@ -85,6 +85,31 @@
 @layer base {
   * { border-color: var(--border); }
   body { background-color: var(--background); color: var(--foreground); }
+
+  /* Native scroll + a gentle snap "lock": the page scrolls normally, but settling
+     near a beat (the hero top or a rail panel sentinel, both marked `snap-start`)
+     eases onto it. `proximity` (not `mandatory`) so it never fights the hero zoom
+     scrub or the horizontal-rail scrub mid-gesture. */
+  html {
+    scroll-snap-type: y proximity;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    html { scroll-behavior: smooth; }
+  }
+
+  /* Keyboard-only focus ring. :focus-visible keeps it off mouse clicks; the
+     ring reads on the dark theme (falls back to --foreground, then #fff if the
+     token is ever missing). outline doesn't disturb layout. */
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid var(--ring, var(--foreground, #fff));
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
 }
 
 /* --- Marquee -------------------------------------------------------------- */
