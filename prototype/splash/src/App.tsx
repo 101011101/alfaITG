@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { FileText } from "lucide-react";
 import { SplashBackground } from "./components/SplashBackground";
 import { LogoBanner } from "./components/LogoBanner";
 import { HeroSection } from "./components/sections/HeroSection";
@@ -6,6 +7,10 @@ import { HorizontalRail } from "./components/HorizontalRail";
 import { frameScroll } from "./lib/frameScroll";
 import { scrollToId } from "./lib/scrollToId";
 import { heroZoom } from "./lib/heroZoom";
+
+// Lazy so react-markdown / remark-gfm never touch the cinematic first paint —
+// the module downloads only on the first press of "Authorial Choices".
+const DocModal = lazy(() => import("./components/ui/DocModal"));
 
 // Single source of truth for every beat of the page. Each view below is derived
 // from this array so the progress bar, header nav and snap engine can never drift:
@@ -31,6 +36,12 @@ export default function App() {
   const [showCorner, setShowCorner] = useState(false);
   const [active, setActive] = useState(0);
   const [atTop, setAtTop] = useState(true);
+  // Authorial Choices modal. `docMounted` latches true on first open so the lazy
+  // chunk loads on demand, then stays mounted for exit animations on later toggles.
+  const [docOpen, setDocOpen] = useState(false);
+  const [docMounted, setDocMounted] = useState(false);
+  const authorialRef = useRef<HTMLButtonElement>(null); // focus returns here on close
+  const openDoc = () => { setDocMounted(true); setDocOpen(true); };
   const lastY = useRef(0);
   const heroFillRef = useRef<HTMLDivElement>(null); // Hero segment fill, driven by zoom progress
   const hoveringHeader = useRef(false); // pause the idle-fade while the nav is in use
@@ -204,24 +215,45 @@ export default function App() {
           ALFA&nbsp;ITG
         </button>
         <nav className="flex items-center gap-5 text-sm text-muted-foreground">
-          {NAV.map((item) => {
+          {/* Section links (everything that isn't the CTA). */}
+          {NAV.filter((b) => !b.isCta).map((item) => {
             const isActive = BEATS[active]?.id === item.id;
-            return item.isCta ? (
-              <button
-                key={item.id}
-                onClick={() => goto(item.id)}
-                className={`rounded border px-3 py-1 text-foreground transition-colors ${
-                  isActive ? "border-foreground bg-accent" : "border-foreground/40 hover:bg-accent"
-                }`}
-              >
-                {item.navLabel}
-              </button>
-            ) : (
+            return (
               <button
                 key={item.id}
                 onClick={() => goto(item.id)}
                 className={`transition-colors ${
                   isActive ? "text-foreground" : "hover:text-foreground"
+                }`}
+              >
+                {item.navLabel}
+              </button>
+            );
+          })}
+
+          {/* Authorial Choices — opens the synthesised design-doc popup. Sits just
+              left of the Contact CTA. */}
+          <button
+            ref={authorialRef}
+            onClick={openDoc}
+            aria-haspopup="dialog"
+            aria-expanded={docOpen}
+            title="Authorial Choices"
+            className="flex items-center gap-1.5 transition-colors hover:text-foreground"
+          >
+            <FileText className="size-4" aria-hidden="true" />
+            <span className="hidden sm:inline">Authorial Choices</span>
+          </button>
+
+          {/* The CTA (Contact), rendered last. */}
+          {NAV.filter((b) => b.isCta).map((item) => {
+            const isActive = BEATS[active]?.id === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => goto(item.id)}
+                className={`rounded border px-3 py-1 text-foreground transition-colors ${
+                  isActive ? "border-foreground bg-accent" : "border-foreground/40 hover:bg-accent"
                 }`}
               >
                 {item.navLabel}
@@ -287,6 +319,17 @@ export default function App() {
       </main>
 
       <LogoBanner />
+
+      {/* Authorial Choices popup — mounted only after first open (lazy chunk). */}
+      {docMounted && (
+        <Suspense fallback={null}>
+          <DocModal
+            open={docOpen}
+            onClose={() => setDocOpen(false)}
+            triggerRef={authorialRef}
+          />
+        </Suspense>
+      )}
     </>
   );
 }
