@@ -21,45 +21,32 @@ function ProductCard({ title, blurb, image, icon: Icon }: Product) {
   );
 }
 
-// Edge treatment is a TRANSPARENCY MASK, not an opaque overlay. The opaque scrim
-// painted a solid --background strip at the panel edges, which at the seams with the
-// neighbouring rail panels (Robot / Proof) read as a block. A mask instead dissolves
-// the cards themselves to NOTHING (revealing the shared background behind, like every
-// other panel), and lets us hold a clean ~5% gutter on the horizontal sides so no card
-// fragment ever reaches the seam.
+// Edge treatment is a TRANSPARENCY MASK, not an opaque overlay (an opaque --background
+// scrim read as a solid block at the seams with the Robot / Proof panels). A mask
+// dissolves the cards themselves to NOTHING, revealing the shared background behind.
+//
+// SCOPE: this panel only owns the VERTICAL fade — the cards scroll in/out top/bottom
+// via the marquee, so they must dissolve there. The HORIZONTAL (left/right) fade is
+// NOT here anymore: it now lives on the rail's viewport-anchored wrapper
+// (TRACK_EDGE_MASK_STYLE in HorizontalRail). A panel-relative horizontal mask scrolled
+// its clear gutters off-screen mid-transition, so the viewport edge sliced the panel's
+// full-opacity middle — cards hit the hard overflow clip with no fade. Anchoring the
+// horizontal fade to the screen fixed that; keeping it here too would double-fade.
 //
 // Applied to the panel-aligned perspective wrapper — NOT the rotated plane — so the
-// gutters stay vertical instead of tilting with the cards. Alpha ramps are eased
-// (several stops) so the dissolve has no hard line. mask-mode is alpha for gradients.
-//
-// Horizontal: ~5% fully-clear gutter each side, then ease in to full by ~15%.
-const H_MASK =
-  "linear-gradient(to right," +
-  " rgba(0,0,0,0) 0%, rgba(0,0,0,0) 5%," +
-  " rgba(0,0,0,0.2) 8%, rgba(0,0,0,0.55) 11%, rgba(0,0,0,0.85) 13%, rgba(0,0,0,1) 15%," +
-  " rgba(0,0,0,1) 85%," +
-  " rgba(0,0,0,0.85) 87%, rgba(0,0,0,0.55) 89%, rgba(0,0,0,0.2) 92%," +
-  " rgba(0,0,0,0) 95%, rgba(0,0,0,0) 100%)";
-// Vertical: cards scroll in/out here, so use a wider eased fade (no hard gutter needed).
+// fade stays axis-aligned instead of tilting with the cards. Several eased stops so
+// the dissolve has no hard line.
 const V_MASK =
   "linear-gradient(to bottom," +
   " rgba(0,0,0,0) 0%, rgba(0,0,0,0.15) 5%, rgba(0,0,0,0.5) 11%, rgba(0,0,0,0.85) 16%, rgba(0,0,0,1) 20%," +
   " rgba(0,0,0,1) 80%," +
   " rgba(0,0,0,0.85) 84%, rgba(0,0,0,0.5) 89%, rgba(0,0,0,0.15) 95%, rgba(0,0,0,0) 100%)";
 
-// Intersect the two so a pixel survives only if BOTH masks keep it (clean corners too).
-//
-// will-change + translateZ(0) promote this wrapper to its OWN backing layer so the mask
-// is baked into that layer's texture and travels as one unit when the horizontal rail
-// translates the track. Without it the mask is a separate compositor step that lands a
-// frame behind during fast scroll, briefly exposing card colour at the leading edge.
 // overflow:hidden hard-clips the scale(1.15) spill at the panel box by layout (reliable
-// every frame) instead of trusting the lagging mask to hide it.
+// every frame). translateZ(0) + will-change keep this wrapper on its own backing layer.
 const MASK_STYLE = {
-  WebkitMaskImage: `${H_MASK}, ${V_MASK}`,
-  maskImage: `${H_MASK}, ${V_MASK}`,
-  WebkitMaskComposite: "source-in",
-  maskComposite: "intersect",
+  WebkitMaskImage: V_MASK,
+  maskImage: V_MASK,
   overflow: "hidden",
   willChange: "transform",
   transform: "translateZ(0)",
@@ -90,9 +77,9 @@ export const ProductsSection = memo(function ProductsSection() {
         ))}
       </ul>
 
-      {/* Full-bleed tilted marquee plane. The mask (panel-aligned) fades the cards to
-          nothing toward every edge and holds clean ~5% gutters on the horizontal sides
-          so no card reaches the seams with the Robot / Proof panels. */}
+      {/* Full-bleed tilted marquee plane. The panel-aligned mask fades the cards to
+          nothing at the TOP/BOTTOM (where the marquee scrolls them in/out); the
+          left/right fade at the screen edges is owned by the rail's viewport mask. */}
       <div
         aria-hidden="true"
         className="absolute inset-0 flex flex-row items-center justify-center [perspective:1200px]"

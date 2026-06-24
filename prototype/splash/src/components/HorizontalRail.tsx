@@ -17,6 +17,23 @@ const CONTACT_EMAIL = "IR@alfaitg.com";
 // would otherwise bust InkReveal's prop memoization).
 const INK_MASK_COLOR: [number, number, number] = [0, 0, 0];
 const INK_STYLE = { opacity: 0.9 } as const;
+// VIEWPORT-anchored horizontal edge fade for the whole panel track. It MUST live
+// on this non-translating wrapper, not on each panel: a panel-relative mask scrolls
+// its clear gutters off-screen mid-transition, so the viewport edge then slices the
+// panel's full-opacity middle and cards meet the hard overflow clip with no fade
+// ("colour leaking at the edge while scrolling"). Anchored here, the fade stays
+// pinned to the screen edges through the entire slide, fading whichever panel(s)
+// straddle each edge. Cheap, eased (a couple of stops, no hard line), symmetric.
+const TRACK_EDGE_MASK_STYLE = {
+  WebkitMaskImage:
+    "linear-gradient(to right," +
+    " rgba(0,0,0,0) 0%, rgba(0,0,0,0.5) 4%, rgba(0,0,0,0.9) 7%, rgba(0,0,0,1) 9%," +
+    " rgba(0,0,0,1) 91%, rgba(0,0,0,0.9) 93%, rgba(0,0,0,0.5) 96%, rgba(0,0,0,0) 100%)",
+  maskImage:
+    "linear-gradient(to right," +
+    " rgba(0,0,0,0) 0%, rgba(0,0,0,0.5) 4%, rgba(0,0,0,0.9) 7%, rgba(0,0,0,1) 9%," +
+    " rgba(0,0,0,1) 91%, rgba(0,0,0,0.9) 93%, rgba(0,0,0,0.5) 96%, rgba(0,0,0,0) 100%)",
+} as const;
 // Viewports of scroll per beat — raise to SLOW the scroll through the rail (2 =
 // half speed). Scales the rail height, each transition's scroll distance, and the
 // sentinel positions together so they stay in lock-step.
@@ -145,20 +162,28 @@ function HorizontalRailImpl() {
       <div id="footer" data-label="More" className="absolute h-px w-full snap-start snap-always" style={{ top: `${4 * BEAT * 100}vh` }} />
 
       <div className="sticky top-0 h-dvh overflow-hidden">
-        {/* horizontal track of full-screen panels */}
-        <div
-          ref={trackRef}
-          className="flex h-full will-change-transform"
-          style={{ width: `${PANELS * 100}vw` }}
-        >
-          <div className="relative h-full w-screen shrink-0 overflow-hidden">
-            <TransitionSection />
-          </div>
-          <div className="relative h-full w-screen shrink-0 overflow-hidden">
-            <ProductsSection />
-          </div>
-          <div className="relative h-full w-screen shrink-0 overflow-hidden">
-            <ProofPanel />
+        {/* Viewport-anchored edge fade. Wraps ONLY the track (Contact overlay +
+            footer below are siblings, so they stay full-bleed). The mask sits on
+            this non-translating box, so its left/right fade is pinned to the SCREEN
+            edges — every panel dissolves at the boundary through the whole slide,
+            instead of snapping at a hard clip when the panel's own gutter scrolls
+            off. No pointer-events change: a mask never blocks the robot/orbit/cards. */}
+        <div className="absolute inset-0 overflow-hidden" style={TRACK_EDGE_MASK_STYLE}>
+          {/* horizontal track of full-screen panels */}
+          <div
+            ref={trackRef}
+            className="flex h-full will-change-transform"
+            style={{ width: `${PANELS * 100}vw` }}
+          >
+            <div className="relative h-full w-screen shrink-0 overflow-hidden">
+              <TransitionSection />
+            </div>
+            <div className="relative h-full w-screen shrink-0 overflow-hidden">
+              <ProductsSection />
+            </div>
+            <div className="relative h-full w-screen shrink-0 overflow-hidden">
+              <ProofPanel />
+            </div>
           </div>
         </div>
 
