@@ -8,11 +8,6 @@ export default defineConfig({
   resolve: {
     alias: { "@": path.resolve(__dirname, "./src") },
   },
-  // Allow reading the canonical design doc that lives at the repo root
-  // (../../docs/synthesised.md), imported with ?raw by the Authorial Choices modal.
-  server: {
-    fs: { allow: [path.resolve(__dirname, "../../")] },
-  },
   build: {
     rollupOptions: {
       output: {

@@ -1,7 +1,7 @@
 // "Authorial Choices" popup — renders the canonical synthesised design doc.
 //
-// The doc is imported with ?raw (single source of truth: docs/synthesised.md at
-// the repo root; see vite.config server.fs.allow) and rendered with react-markdown.
+// The doc is imported with ?raw from src/content/synthesised.md (kept inside the
+// app root so Vercel can bundle it) and rendered with react-markdown.
 //
 // This whole module is loaded LAZILY (see App.tsx) so react-markdown / remark-gfm
 // never touch the cinematic first paint — they download only on first open. The
@@ -16,7 +16,7 @@ import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import doc from "../../../../../docs/synthesised.md?raw";
+import doc from "../../content/synthesised.md?raw";
 
 type Props = {
   open: boolean;
