@@ -122,12 +122,8 @@
   to   { transform: translateY(calc(-100% - var(--gap))); }
 }
 
-/* --- Bottom logo banner (curved-arc carousel) ----------------------------- */
-@keyframes logo-marquee {
-  from { transform: translateX(0); }
-  to   { transform: translateX(-50%); }
-}
-.animate-logo-marquee { animation: logo-marquee 32s linear infinite; }
+/* The bottom logo banner is driven on the main thread via frameClock (see
+   LogoBanner.tsx) — a CSS transform animation desynced pointer hit-testing. */
 
 /* --- Spline loader fallback (splite.tsx) ---------------------------------- */
 .loader {
